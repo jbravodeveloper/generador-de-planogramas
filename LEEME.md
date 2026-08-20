@@ -81,8 +81,14 @@ Al hacer clic en un producto aparece además una barra con su ficha, donde podé
 Las flechas del teclado y las teclas `+` / `−` hacen lo mismo, y **`Supr` saca del plano
 el producto seleccionado**; `Esc` deselecciona.
 
-Lo que sacás no se pierde: arriba aparece *«N productos fuera»* con el botón **Devolver
-al plano**, que los trae de vuelta al lugar que tenían.
+Lo que sacás no se pierde: aparece una **bandeja arriba del plano** con lo que quedó
+afuera. Desde ahí podés **arrastrar cada producto de vuelta** a la fila y la posición que
+quieras, igual que si lo movieras dentro del plano. El botón `↩` de cada ficha lo devuelve
+a su lugar anterior, y **Devolver al plano** los trae todos de una.
+
+Al quitar un producto el acomodo queda **congelado a mano**, para que el hueco siga libre
+y puedas devolverlo ahí. Si preferís que el mueble se vuelva a llenar solo, usá **Volver
+al automático**.
 
 ### Cómo se reparten en la fila
 
