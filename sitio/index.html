@@ -314,6 +314,8 @@ tbody tr.viva { background:var(--acento-suave); box-shadow:inset 3px 0 0 var(--a
 .pasitos .btn { padding:1px 6px; font-size:13px; line-height:1.25; min-width:22px;
                 justify-content:center; }
 .pasitos b { min-width:16px; text-align:center; font-size:12.5px; font-weight:700; }
+.reparto { font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:500;
+           color:var(--marino); cursor:help; white-space:nowrap; }
 .c-img img { width:36px; height:36px; object-fit:contain; display:block; }
 .ficha { display:inline-block; min-width:19px; text-align:center; background:var(--marino);
          color:var(--surface); border-radius:4px; padding:3px 5px; line-height:1;
@@ -544,7 +546,7 @@ const el = {
 const estado = {
   productos:null, hojas:[], hoja:"", nombreArchivo:"", libro:null,
   modulos:null, cfg:null, categoria:"", modulo:0,
-  zoom:1, ajustar:true, viva:null, trabajos:0,
+  zoom:1, ajustar:true, viva:null, vivaEn:null, trabajos:0,
   manual:null,           // null = acomodo automático; si no, una disposición por módulo
   quitados:new Set()     // productos sacados del plano a mano
 };
@@ -1323,7 +1325,20 @@ function montarManual(disposiciones, cfg, quitados) {
   return finalizar(mods, cfg);
 }
 
-/* Dónde está un producto dentro de una disposición. */
+/* El bloque exacto: un mismo producto puede estar en más de una fila. */
+function ubicarBloque(disp, idx, en) {
+  if (en) {
+    const filas = en.zona === "G" ? disp.filasG : disp.filasT;
+    const fila = filas[en.fila];
+    if (fila) {
+      const pos = fila.findIndex(it => it.p.idx === idx);
+      if (pos >= 0) return { zona: en.zona, fila: en.fila, pos };
+    }
+  }
+  return ubicarEn(disp, idx);
+}
+
+/* Dónde está un producto dentro de una disposición (la primera fila donde aparece). */
 function ubicarEn(disp, idx) {
   for (const zona of ["G", "T"]) {
     const filas = zona === "G" ? disp.filasG : disp.filasT;
@@ -1958,6 +1973,7 @@ function dibujarPlano() {
       ch.style.left = pct((ini.x + fin.x + fin.w) / 2, W);
       ch.style.bottom = pct(Math.max(...bloque.map(c => c.y + c.h)), H);
       pieza.appendChild(ch);
+      pieza.dataset.caras = bloque.length;
       pieza.addEventListener("pointerdown", e => tomarPieza(e, pieza, p));
       mueble.appendChild(pieza);
     });
@@ -2139,7 +2155,10 @@ function soltandoPieza() {
   arrastre = null;
   document.removeEventListener("pointermove", moviendoPieza);
   if (!a) return;
-  if (!a.activo) { marcar(a.producto.idx, true); return; }
+  if (!a.activo) {
+    marcar(a.producto.idx, true, a.desde ? { zona:a.desde.zona, fila:a.desde.fila } : null);
+    return;
+  }
 
   a.mueble.classList.remove("moviendo");
   a.pieza.classList.remove("alzada");
@@ -2317,6 +2336,7 @@ function quitarProducto(idx) {
     return;
   }
   estado.viva = null;
+  estado.vivaEn = null;
   estado.modulos = mods;
   estado.modulo = Math.min(estado.modulo, mods.length - 1);
   redibujar();
@@ -2400,14 +2420,14 @@ function devolverProductos(soloEstos) {
   avisar(faltantes.length + (faltantes.length === 1 ? " producto devuelto" : " productos devueltos") + " al plano.");
 }
 
-function cambiarCaras(delta, idx) {
-  if (idx == null) idx = estado.viva;
+function cambiarCaras(delta, idx, en) {
+  if (idx == null) { idx = estado.viva; en = en || estado.vivaEn; }
   if (idx == null || !estado.modulos) return;
   entrarManual();
   const m = estado.modulos.findIndex(mod => mod.productos.some(p => p.idx === idx));
   if (m < 0) return;
   const copia = copiarDisp(estado.manual[m]);
-  const donde = ubicarEn(copia, idx);
+  const donde = ubicarBloque(copia, idx, en);
   if (!donde) return;
   const item = copia[donde.zona === "G" ? "filasG" : "filasT"][donde.fila][donde.pos];
   const antes = item.n;
@@ -2444,7 +2464,7 @@ function empujar(dir) {
   if (estado.viva == null) return;
   entrarManual();
   const disp = estado.manual[estado.modulo];
-  const desde = ubicarEn(disp, estado.viva);
+  const desde = ubicarBloque(disp, estado.viva, estado.vivaEn);
   if (!desde) return;
   const filas = desde.zona === "G" ? disp.filasG : disp.filasT;
 
@@ -2473,14 +2493,15 @@ function empujar(dir) {
 }
 
 function redibujar() {
-  const viva = estado.viva, scroll = el.lista.scrollTop;
+  const viva = estado.viva, en = estado.vivaEn, scroll = el.lista.scrollTop;
   dibujarPestanas();
   dibujarPlano();
   dibujarCifras();
   dibujarLista();
   el.lista.scrollTop = scroll;               // no saltar mientras se ajustan caras
   estado.viva = null;
-  if (viva != null) marcar(viva, false);
+  estado.vivaEn = null;
+  if (viva != null) marcar(viva, false, en); // sigue seleccionado el mismo bloque
   pintarTira();
 }
 
@@ -2509,6 +2530,10 @@ function dibujarLista() {
 
   for (const mod of estado.modulos) {
     const conteo = carasPorProducto(mod);
+    const reparto = {};                    // idx -> caras por fila
+    for (const nv of mod.niveles)
+      for (const b of bloquesDelNivel(nv))
+        (reparto[b[0].p.idx] = reparto[b[0].p.idx] || []).push({ nv, n: b.length });
     for (const p of mod.productos) {
       const fila = nodo("tr");
       fila.dataset.idx = p.idx;
@@ -2538,18 +2563,27 @@ function dibujarLista() {
       fila.appendChild(tdU);
 
       const tdC = nodo("td", "c-caras");
-      const grupo = nodo("div", "pasitos");
-      const menos = nodo("button", "btn", "−");
-      menos.title = "Quitar una cara";
-      menos.setAttribute("aria-label", "Quitar una cara a " + p.descripcion);
-      const mas = nodo("button", "btn", "+");
-      mas.title = "Agregar una cara";
-      mas.setAttribute("aria-label", "Agregar una cara a " + p.descripcion);
-      const num = nodo("b", "mono", String(conteo[p.idx] || 1));
-      menos.onclick = e => { e.stopPropagation(); cambiarCaras(-1, p.idx); };
-      mas.onclick = e => { e.stopPropagation(); cambiarCaras(1, p.idx); };
-      grupo.append(menos, num, mas);
-      tdC.appendChild(grupo);
+      const trozos = reparto[p.idx] || [];
+      if (trozos.length > 1) {
+        // repartido en varias filas: cada una se ajusta desde el plano
+        const d = nodo("div", "reparto", trozos.map(t => t.n).join(" + "));
+        d.title = trozos.map(t => t.n + " en " + nombreNivel(t.nv)).join("\n") +
+                  "\nTocá el producto en el plano para ajustar cada fila";
+        tdC.appendChild(d);
+      } else {
+        const grupo = nodo("div", "pasitos");
+        const menos = nodo("button", "btn", "−");
+        menos.title = "Quitar una cara";
+        menos.setAttribute("aria-label", "Quitar una cara a " + p.descripcion);
+        const mas = nodo("button", "btn", "+");
+        mas.title = "Agregar una cara";
+        mas.setAttribute("aria-label", "Agregar una cara a " + p.descripcion);
+        const num = nodo("b", "mono", String(conteo[p.idx] || 1));
+        menos.onclick = e => { e.stopPropagation(); cambiarCaras(-1, p.idx); };
+        mas.onclick = e => { e.stopPropagation(); cambiarCaras(1, p.idx); };
+        grupo.append(menos, num, mas);
+        tdC.appendChild(grupo);
+      }
       fila.appendChild(tdC);
 
       fila.onclick = () => marcar(p.idx, false);
@@ -2567,9 +2601,13 @@ function filtrar() {
   });
 }
 
-function marcar(idx, desdePlano) {
-  const nueva = estado.viva === idx ? null : idx;
+function marcar(idx, desdePlano, en) {
+  // el mismo producto puede estar en varias filas: se selecciona un bloque
+  const mismo = estado.viva === idx && (!en || !estado.vivaEn ||
+    (estado.vivaEn.zona === en.zona && estado.vivaEn.fila === en.fila));
+  const nueva = mismo ? null : idx;
   estado.viva = nueva;
+  estado.vivaEn = nueva == null ? null : (en || null);
   if (nueva != null && !desdePlano) {
     const p = estado.modulos.flatMap(m => m.productos).find(x => x.idx === nueva);
     if (p && p.modulo - 1 !== estado.modulo) {
@@ -2577,8 +2615,12 @@ function marcar(idx, desdePlano) {
       dibujarPestanas(); dibujarPlano(); dibujarCifras();
     }
   }
-  el.mesa.querySelectorAll(".pieza").forEach(g =>
-    g.classList.toggle("viva", Number(g.dataset.idx) === nueva));
+  el.mesa.querySelectorAll(".pieza").forEach(g => {
+    const suyo = Number(g.dataset.idx) === nueva;
+    const esteBloque = !estado.vivaEn ||
+      (g.dataset.zona === estado.vivaEn.zona && +g.dataset.fila === estado.vivaEn.fila);
+    g.classList.toggle("viva", suyo && esteBloque);
+  });
   let filaViva = null;
   el.lista.querySelectorAll("tbody tr").forEach(tr => {
     const es = Number(tr.dataset.idx) === nueva;
@@ -2600,11 +2642,22 @@ function pintarTira() {
   const mod = estado.modulos.find(m => m.productos.some(p => p.idx === idx));
   const p = mod && mod.productos.find(q => q.idx === idx);
   if (!p) { el.tira.hidden = true; return; }
-  const n = carasPorProducto(mod)[idx] || 1;
+
+  // caras del bloque seleccionado, no del producto entero
+  const en = estado.vivaEn;
+  const nivel = en
+    ? (en.zona === "G" ? mod.ganchos : mod.estantes)[en.fila]
+    : mod.niveles.find(nv => nv.caras.some(c => c.p.idx === idx));
+  const suyas = nivel ? nivel.caras.filter(c => c.p.idx === idx).length : 0;
+  const total = carasPorProducto(mod)[idx] || 0;
+  const n = suyas || total;
+
   el.tiraNum.textContent = p.numero;
   el.tiraNombre.textContent = p.descripcion;
-  el.tiraDonde.textContent = (estado.modulos.length > 1 ? "Módulo " + mod.indice + " · " : "") +
-                             p.nivel + " · " + medidasDe(p) + " cm";
+  el.tiraDonde.textContent =
+    (estado.modulos.length > 1 ? "Módulo " + mod.indice + " · " : "") +
+    (nivel ? nombreNivel(nivel) : p.nivel) + " · " + medidasDe(p) + " cm" +
+    (total > n ? "  ·  " + total + " caras en total" : "");
   el.carasTexto.textContent = n + (n === 1 ? " cara" : " caras");
   el.tira.hidden = false;
 }
@@ -2658,6 +2711,7 @@ async function releerHoja() {
     await esperar();
     estado.manual = null;                    // otro surtido, otro acomodo
     estado.viva = null;
+    estado.vivaEn = null;
     estado.quitados.clear();
     pintarModo(); pintarFuera();
     const { productos, avisos } = await leerProductos(estado.libro, estado.hoja);
@@ -2716,6 +2770,7 @@ function generar() {
     estado.categoria = el.categoria.value.trim() || estado.hoja;
     estado.modulo = Math.min(estado.modulo, modulos.length - 1);
     estado.viva = null;
+    estado.vivaEn = null;
     el.hueco.remove();
     el.btnPdf.disabled = el.btnPng.disabled = false;
     el.buscar.disabled = false;
