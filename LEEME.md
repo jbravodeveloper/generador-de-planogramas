@@ -170,7 +170,7 @@ la altura de cada nivel.
 |---|---|
 | Título del planograma | el texto de la cenefa, del encabezado de cada hoja del PDF y del nombre del archivo. Sale tal cual lo escribas |
 | Ancho / Alto (cm) | cambiar la medida del mueble (por defecto 122 × 180) |
-| Gancheras / Tablillas | cuántas filas de cada tipo querés. Vacío = las decide solo, usando las menos posibles. Con un número, reparte los productos parejo en esa cantidad de filas; si no entran todas, te avisa cuántas entraron |
+| Gancheras / Tablillas | cuántas filas de cada tipo querés. Vacío = las decide solo, usando las menos posibles. Con un número, reparte los productos parejo en esa cantidad de filas; si no entran todas, te avisa cuántas entraron. **Funciona también con el acomodo hecho a mano**: reparte las filas conservando el orden que armaste. Si no entran, subí el alto del mueble |
 | Máximo de caras | tope de caras que el relleno automático puede asignar |
 | Rellenar automáticamente | destildalo para dejar 1 cara por producto (o lo que diga la columna `Caras`) |
 

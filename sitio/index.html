@@ -419,7 +419,8 @@ tr.viva .ficha { background:var(--acento); color:var(--acento-ink); }
             <input type="number" id="nTablillas" min="1" max="14" step="1" placeholder="Auto"></div>
         </div>
         <p class="pista">Vacío = las decide solo, usando las menos posibles. Si ponés un
-          número, reparte los productos parejo en esa cantidad de filas.</p>
+          número, reparte los productos parejo en esa cantidad de filas, incluso si ya
+          acomodaste a mano. Si no entran, subí el alto del mueble.</p>
       </div>
 
       <div class="bloque">
@@ -2138,9 +2139,50 @@ function pintarModo() {
   el.auto.disabled = manual;
   el.caras.disabled = manual || !el.auto.checked;
   el.campoCaras.style.opacity = (manual || !el.auto.checked) ? ".45" : "1";
-  // acomodando a mano, las filas son las que armaste vos
-  el.nGanchos.disabled = el.nTablillas.disabled = manual;
-  el.nGanchos.parentElement.parentElement.style.opacity = manual ? ".45" : "1";
+}
+
+/* Reparte una zona en otra cantidad de filas conservando el orden armado a mano. */
+function reparticionar(zona, n) {
+  if (!estado.manual || !estado.modulos) { generar(); return; }
+  const cfg = estado.cfg, m = estado.modulo;
+  const clave = zona === "G" ? "filasG" : "filasT";
+  const nombre = zona === "G" ? "gancheras" : "tablillas";
+  const copia = copiarDisp(estado.manual[m]);
+  const todos = copia[clave].flat();
+  const dentro = todos.filter(it => !estado.quitados.has(it.p.idx));
+  const fuera = todos.filter(it => estado.quitados.has(it.p.idx));
+  if (!dentro.length) {
+    avisar("No hay productos en la zona de " + nombre + ".", true);
+    return;
+  }
+
+  const bloques = dentro.map(it => ({
+    p: it.p, n: it.n, w: it.n * caraAncho(it.p) + (it.n - 1) * cfg.sepCara
+  }));
+  const filas = n == null ? repartirFilas(bloques, cfg) : partirEnN(bloques, n, cfg);
+  if (!filas || !filas.length) {
+    avisar("En " + n + (n === 1 ? " fila" : " filas") + " no entran a lo ancho: alguna " +
+           "pasaría de los " + redondo(anchoUtil(cfg)) + " cm útiles.", true);
+    return;
+  }
+  copia[clave] = filas.map(f => f.map(b => ({ p: b.p, n: b.n })));
+  if (fuera.length) copia[clave][copia[clave].length - 1].push(...fuera);
+
+  const prueba = estado.manual.slice();
+  prueba[m] = copia;
+  const mods = montarManual(prueba, cfg, estado.quitados);
+  if (!mods) {
+    montarManual(estado.manual, cfg, estado.quitados);
+    avisar("No entran " + n + " " + nombre + " en un mueble de " +
+           redondo(cfg.altoMueble) + " cm de alto. Subí el alto o sacá algún producto.", true);
+    return;
+  }
+  estado.manual = prueba;
+  estado.modulos = mods;
+  redibujar();
+  const reales = (zona === "G" ? mods[m].ganchos : mods[m].estantes).length;
+  if (n != null && reales !== n)
+    avisar("Se pidieron " + n + " " + nombre + " y entraron " + reales + ".", true);
 }
 
 /* Aplica un movimiento sobre el módulo visible. Devuelve true si se pudo. */
@@ -2724,8 +2766,23 @@ el.categoria.addEventListener("input", () => {
   const c = el.mesa.querySelector(".cenefa span");
   if (c) c.textContent = estado.categoria;
 });
-[el.ancho, el.alto, el.nGanchos, el.nTablillas].forEach(i =>
+[el.ancho, el.alto].forEach(i =>
   i.addEventListener("input", () => { estado.modulo = 0; generarPronto(); }));
+
+// los niveles: en automático rearman todo; a mano reparten sin perder el orden
+let relojNiveles;
+function nivelesPronto(zona) {
+  clearTimeout(relojNiveles);
+  relojNiveles = setTimeout(() => {
+    const campo = zona === "G" ? el.nGanchos : el.nTablillas;
+    const v = parseInt(campo.value, 10);
+    const n = isFinite(v) && v >= 1 ? Math.min(14, v) : null;
+    if (estado.manual) reparticionar(zona, n);
+    else { estado.modulo = 0; generar(); }
+  }, 350);
+}
+el.nGanchos.addEventListener("input", () => nivelesPronto("G"));
+el.nTablillas.addEventListener("input", () => nivelesPronto("T"));
 el.caras.addEventListener("input", function () { el.salidaCaras.textContent = this.value; generarPronto(); });
 el.auto.addEventListener("change", function () {
   pintarModo();
