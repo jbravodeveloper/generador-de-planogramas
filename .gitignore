@@ -1,0 +1,21 @@
+# Datos de productos: no van al repositorio.
+# El generador funciona con el Excel que cada quien carga en su navegador.
+*.xlsx
+*.xlsm
+*.xls
+
+# Salidas generadas (ojo: no debe alcanzar a planogramas-web.html)
+Planograma - *.pdf
+Planograma - *.png
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Vercel
+.vercel/
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store

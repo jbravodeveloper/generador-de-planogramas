@@ -1,0 +1,2668 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de Planogramas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ============================ tokens ============================ */
+:root {
+  --ground:#E9EDF1; --surface:#FFFFFF; --surface-2:#F5F8FA; --sunken:#DFE5EB;
+  --ink:#0F1F2C; --ink-2:#57687A; --ink-3:#8493A3;
+  --line:#D8E0E8; --line-2:#BDC9D5;
+  --marino:#16395C; --marino-2:#356A9E; --marino-suave:#E8F0F8;
+  --acento:#C31432; --acento-ink:#FFFFFF; --acento-suave:#FCEDEF;
+  --alerta:#7C5A0D; --alerta-bg:#FDF6E5; --alerta-line:#E9D49B;
+  --sombra:0 1px 2px rgba(15,31,44,.05), 0 6px 18px rgba(15,31,44,.07);
+  --sombra-hoja:0 2px 6px rgba(15,31,44,.10), 0 12px 34px rgba(15,31,44,.13);
+  --r:10px; --barra:52px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:#0C151E; --surface:#141F2B; --surface-2:#1A2836; --sunken:#080E15;
+    --ink:#E2EAF2; --ink-2:#94A5B6; --ink-3:#6C7E90;
+    --line:#243546; --line-2:#33495F;
+    --marino:#8CB8E4; --marino-2:#B0D2F0; --marino-suave:#152537;
+    --acento:#FF5670; --acento-ink:#1B0206; --acento-suave:#2A1219;
+    --alerta:#E5BA63; --alerta-bg:#2A2412; --alerta-line:#4E4223;
+    --sombra:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+    --sombra-hoja:0 2px 8px rgba(0,0,0,.5), 0 14px 40px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#0C151E; --surface:#141F2B; --surface-2:#1A2836; --sunken:#080E15;
+  --ink:#E2EAF2; --ink-2:#94A5B6; --ink-3:#6C7E90;
+  --line:#243546; --line-2:#33495F;
+  --marino:#8CB8E4; --marino-2:#B0D2F0; --marino-suave:#152537;
+  --acento:#FF5670; --acento-ink:#1B0206; --acento-suave:#2A1219;
+  --alerta:#E5BA63; --alerta-bg:#2A2412; --alerta-line:#4E4223;
+  --sombra:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+  --sombra-hoja:0 2px 8px rgba(0,0,0,.5), 0 14px 40px rgba(0,0,0,.45);
+}
+/* El plano imita la hoja impresa: mismos colores en claro y oscuro. */
+:root {
+  --papel:#FFFFFF; --papel-marino:#173A5E; --papel-linea:#AEB8C4;
+  --papel-tabla:#A8B2BD; --papel-tabla-2:#7C8794;
+  --papel-peg:#F7F9FB; --papel-estante:#F1F4F7; --papel-punto:#DDE5EC;
+  --papel-ink:#1F2933; --papel-gris:#6B7683;
+}
+
+* { box-sizing:border-box; }
+/* varias clases de abajo fijan display, que le gana al atributo hidden */
+[hidden] { display:none !important; }
+html, body { height:100%; }
+body {
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3 { margin:0; font-family:"Barlow Condensed","Barlow",sans-serif;
+           font-weight:700; letter-spacing:.01em; text-wrap:balance; }
+.mono { font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+        font-variant-numeric:tabular-nums; }
+:focus-visible { outline:2px solid var(--marino-2); outline-offset:2px; border-radius:4px; }
+
+/* ============================ barra ============================ */
+.barra {
+  height:var(--barra); display:flex; align-items:center; gap:14px; padding:0 14px;
+  background:var(--surface); border-bottom:1px solid var(--line); position:relative;
+}
+.barra::after { content:""; position:absolute; left:0; bottom:-1px; width:96px; height:2px;
+                background:var(--acento); }
+.logo { display:flex; align-items:center; gap:9px; }
+.logo svg { width:24px; height:24px; }
+.logo b { font-family:"Barlow Condensed",sans-serif; font-weight:700; font-size:19px;
+          letter-spacing:.055em; text-transform:uppercase; }
+.origen { margin-left:6px; padding-left:12px; border-left:1px solid var(--line);
+          font-size:12.5px; color:var(--ink-2); max-width:34ch;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.acciones { margin-left:auto; display:flex; gap:8px; align-items:center; }
+
+/* ============================ botones ============================ */
+.btn {
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  font:inherit; font-weight:600; font-size:13px;
+  padding:7px 13px; border-radius:8px;
+  border:1px solid var(--line-2); background:var(--surface); color:var(--ink);
+  transition:background .12s, border-color .12s, opacity .12s;
+}
+.btn:hover:not(:disabled) { background:var(--surface-2); border-color:var(--marino-2); }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+.btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.9;
+           stroke-linecap:round; stroke-linejoin:round; }
+.btn.fuerte { background:var(--acento); border-color:transparent; color:var(--acento-ink); }
+.btn.fuerte:hover:not(:disabled) { background:var(--acento); filter:brightness(1.08); border-color:transparent; }
+.btn.mini { padding:4px 9px; font-size:12px; }
+
+/* ============================ estructura ============================ */
+.consola {
+  height:calc(100% - var(--barra)); display:grid; gap:10px; padding:10px;
+  grid-template-columns:288px minmax(280px,max-content) minmax(340px,1fr);
+  grid-template-rows:minmax(0,1fr);
+}
+.tarjeta { background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+           box-shadow:var(--sombra); min-height:0; display:flex; flex-direction:column; }
+.rail { overflow-y:auto; padding:12px; gap:12px; }
+
+/* ============================ controles ============================ */
+.rotulo { font-family:"Barlow Condensed",sans-serif; font-weight:600; font-size:11.5px;
+          letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); }
+.bloque { border:1px solid var(--line); border-radius:var(--r); padding:11px 12px;
+          display:flex; flex-direction:column; gap:9px; }
+.bloque > .rotulo { margin-bottom:-2px; }
+
+.soltar {
+  display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center;
+  padding:20px 14px; border:1.5px dashed var(--line-2); border-radius:var(--r);
+  background:var(--surface-2); cursor:pointer; transition:border-color .15s, background .15s;
+}
+.soltar:hover, .soltar.encima { border-color:var(--marino-2); background:var(--marino-suave); }
+.soltar svg { width:24px; height:24px; margin-bottom:5px; fill:none; stroke:var(--marino-2);
+              stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.soltar div { display:flex; flex-direction:column; min-width:0; }
+.soltar b { font-size:13.5px; }
+.soltar small { font-size:12px; color:var(--ink-2);
+                overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.soltar.puesta { padding:11px; flex-direction:row; gap:9px; text-align:left; align-items:center; }
+.soltar.puesta svg { width:18px; height:18px; margin:0; flex:none; }
+.mandos { display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; }
+.soltar.puesta small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.campo { display:flex; flex-direction:column; gap:4px; }
+.campo > label { font-size:12px; font-weight:600; color:var(--ink-2); }
+.campo input[type=text], .campo input[type=number], .campo select {
+  font:inherit; color:inherit; background:var(--surface); width:100%;
+  padding:7px 9px; border:1px solid var(--line-2); border-radius:7px;
+}
+.duo { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+input[type=range] { width:100%; accent-color:var(--marino-2); }
+.marca { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+.marca input { accent-color:var(--marino-2); width:15px; height:15px; }
+.pista { font-size:11.5px; line-height:1.4; color:var(--ink-3); margin:0; }
+code { font-family:"IBM Plex Mono",monospace; font-size:.9em; background:var(--surface-2);
+       border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+output { font-family:"IBM Plex Mono",monospace; font-weight:500; color:var(--marino); }
+
+.cifras { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line);
+          border:1px solid var(--line); border-radius:var(--r); overflow:hidden; }
+.cifras div { background:var(--surface); padding:8px 11px; }
+.cifras b { display:block; font-family:"Barlow Condensed",sans-serif; font-size:21px;
+            line-height:1.1; color:var(--marino); font-variant-numeric:tabular-nums; }
+.cifras span { font-size:11px; color:var(--ink-3); }
+
+.avisos { border:1px solid var(--alerta-line); background:var(--alerta-bg); color:var(--alerta);
+          border-radius:var(--r); padding:9px 11px; font-size:11.5px; line-height:1.5; }
+.avisos b { display:block; margin-bottom:3px; font-size:12px; }
+.avisos ul { margin:0; padding-left:15px; }
+
+/* ============================ lienzo ============================ */
+.cabecera { display:flex; align-items:center; gap:9px; padding:8px 11px;
+            border-bottom:1px solid var(--line); min-height:44px; }
+.cabecera h2 { font-size:15px; }
+.pestanas { display:flex; gap:4px; flex-wrap:wrap; }
+.pestana { font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+           padding:4px 11px; border-radius:7px; border:1px solid var(--line-2);
+           background:var(--surface); color:var(--ink-2); }
+.pestana[aria-selected="true"] { background:var(--marino); border-color:var(--marino);
+                                 color:var(--surface); }
+:root[data-theme="dark"] .pestana[aria-selected="true"],
+:root:not([data-theme="light"]) .pestana[aria-selected="true"] { color:var(--ground); }
+.zoom { margin-left:auto; display:flex; gap:4px; }
+
+.mesa { flex:1; overflow:auto; padding:16px; display:flex; justify-content:center;
+        align-items:flex-start; background:var(--sunken); border-radius:0 0 var(--r) var(--r); }
+.hueco { margin:auto; max-width:34ch; text-align:center; color:var(--ink-2); font-size:13px; }
+.hueco svg { width:40px; height:40px; fill:none; stroke:var(--line-2); stroke-width:1.4;
+             margin-bottom:8px; }
+
+/* ---------------------------- el plano ---------------------------- */
+.plano { display:flex; gap:6px; height:560px; }
+.regla { position:relative; width:26px; flex:none; }
+.tick { position:absolute; right:0; transform:translateY(50%); display:flex; align-items:center;
+        gap:4px; white-space:nowrap; }
+.tick b { color:var(--papel-marino); font-family:"Barlow Condensed",sans-serif;
+          font-size:12px; font-weight:700; letter-spacing:.03em; }
+.tick::after { content:""; width:5px; height:1px; background:var(--papel-linea); }
+
+.mueble { position:relative; height:100%; flex:none; overflow:hidden;
+          background:var(--papel); border:1.5px solid var(--papel-marino);
+          box-shadow:var(--sombra-hoja); container-type:inline-size;
+          user-select:none; -webkit-user-select:none; }
+.mueble img { -webkit-user-drag:none; }
+.cenefa { position:absolute; inset:0 0 auto 0; background:var(--papel-marino); color:#fff;
+          display:flex; align-items:center; justify-content:center; padding:0 4%;
+          font-family:"Barlow Condensed",sans-serif; font-weight:700;
+          letter-spacing:.06em; font-size:clamp(11px,6cqw,26px); }
+.cenefa span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.franja { position:absolute; left:0; right:0; }
+.franja.gancho { background:var(--papel-peg);
+  background-image:radial-gradient(var(--papel-punto) 1px, transparent 1.2px);
+  background-size:4% 4%; }
+.franja.estante { background:var(--papel-estante); }
+.zocalo { position:absolute; left:0; right:0; bottom:0; background:var(--papel-tabla);
+          border-top:2px solid var(--papel-tabla-2); }
+.tabla { position:absolute; left:0; right:0; background:var(--papel-tabla); }
+.varilla { position:absolute; left:0; right:0; height:2px; background:var(--papel-tabla-2); }
+
+.pieza { position:absolute; inset:0; pointer-events:none; }
+.pieza > * { pointer-events:auto; cursor:pointer; }
+.cara { position:absolute; background:var(--papel); border:1px solid var(--papel-linea);
+        display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.cara img { width:92%; height:92%; object-fit:contain; display:block; }
+.cara.vacia { background-image:repeating-linear-gradient(45deg,#EFF2F5 0 4px,#fff 4px 8px); }
+.chapa { position:absolute; transform:translate(-50%,50%); background:var(--papel-marino);
+         color:#fff; border-radius:4px; padding:3px 5px; line-height:1; white-space:nowrap;
+         font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:500;
+         box-shadow:0 1px 3px rgba(0,0,0,.28); }
+.pieza:hover .cara { border-color:var(--papel-marino); }
+.pieza.viva .cara { border-color:#C31432; box-shadow:inset 0 0 0 2px #C31432; }
+.pieza.viva .chapa { background:#C31432; }
+.pieza > * { cursor:grab; touch-action:none; }
+.pieza.alzada .cara { opacity:.3; }
+.pieza.alzada .chapa { opacity:.3; }
+
+/* ------------------------ arrastrar y soltar ------------------------ */
+.bandas { position:absolute; inset:0; pointer-events:none; opacity:0;
+          transition:opacity .12s ease; }
+.mueble.moviendo .bandas { opacity:1; }
+.mueble.moviendo .pieza > * { cursor:grabbing; }
+.banda { position:absolute; left:0; right:0; border:1px dashed transparent; border-radius:2px; }
+.banda.activa { background:rgba(23,58,94,.09); border-color:#173A5E; }
+.banda.nueva { border-style:dotted; }
+.banda.nueva.activa { background:rgba(195,20,50,.08); border-color:#C31432; }
+.banda.nueva.activa::after {
+  content:"fila nueva"; position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  font-family:"Barlow Condensed",sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; color:#C31432;
+}
+.marcador { position:absolute; background:#C31432; border-radius:2px; z-index:6;
+            pointer-events:none; box-shadow:0 0 0 1px rgba(255,255,255,.7); }
+.fantasma { position:fixed; z-index:80; pointer-events:none; transform:translate(-50%,-50%);
+            display:flex; align-items:center; gap:6px; padding:5px 9px 5px 5px;
+            border-radius:7px; background:var(--marino); color:#fff;
+            font-size:12px; font-weight:600; max-width:260px;
+            box-shadow:0 8px 22px rgba(0,0,0,.35); }
+:root[data-theme="dark"] .fantasma, :root:not([data-theme="light"]) .fantasma { color:var(--ground); }
+.fantasma img { width:26px; height:26px; object-fit:contain; background:#fff;
+                border-radius:4px; padding:1px; }
+.fantasma span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ------------------------ barra de selección ------------------------ */
+.tira { display:flex; align-items:center; gap:10px; padding:7px 11px; flex-wrap:wrap;
+        border-bottom:1px solid var(--line); background:var(--surface-2); }
+.tira .quien { display:flex; align-items:center; gap:8px; min-width:0; flex:1; }
+.tira .quien b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.tira .quien small { color:var(--ink-3); font-size:11.5px; white-space:nowrap; }
+.pasos { display:flex; align-items:center; gap:4px; }
+.pasos .btn { padding:3px 8px; font-size:13px; line-height:1.2; min-width:26px;
+              justify-content:center; }
+.pasos .txt { font-size:12px; color:var(--ink-2); min-width:58px; text-align:center; }
+.cruz { display:grid; grid-template-columns:repeat(3,24px); grid-template-rows:repeat(2,22px);
+        gap:2px; }
+.cruz .btn { padding:0; justify-content:center; font-size:12px; }
+.cruz .arr { grid-area:1 / 2; } .cruz .izq { grid-area:2 / 1; }
+.cruz .aba { grid-area:2 / 2; } .cruz .der { grid-area:2 / 3; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px;
+        background:var(--acento-suave); color:var(--acento); font-size:11.5px; font-weight:700;
+        font-family:"Barlow Condensed",sans-serif; letter-spacing:.07em; text-transform:uppercase; }
+.chip.fuera { background:var(--alerta-bg); color:var(--alerta); }
+.btn.peligro { border-color:var(--acento); color:var(--acento); }
+.btn.peligro:hover:not(:disabled) { background:var(--acento-suave); }
+
+/* ============================ ledger ============================ */
+.buscador { margin-left:auto; font:inherit; font-size:12.5px; width:150px; color:inherit;
+            padding:5px 9px; border:1px solid var(--line-2); border-radius:7px;
+            background:var(--surface); }
+.lista { flex:1; overflow:auto; }
+table { width:100%; border-collapse:collapse; font-size:12.5px; }
+thead th {
+  position:sticky; top:0; z-index:1; background:var(--marino); color:var(--surface);
+  font-family:"Barlow Condensed",sans-serif; font-weight:600; font-size:11.5px;
+  letter-spacing:.09em; text-transform:uppercase; text-align:left;
+  padding:7px 8px; white-space:nowrap;
+}
+:root[data-theme="dark"] thead th,
+:root:not([data-theme="light"]) thead th { color:var(--ground); }
+tbody td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+tbody tr { cursor:pointer; }
+tbody tr:nth-child(even) { background:var(--surface-2); }
+tbody tr:hover { background:var(--marino-suave); }
+tbody tr.viva { background:var(--acento-suave); box-shadow:inset 3px 0 0 var(--acento); }
+.c-n { width:32px; } .c-img { width:44px; } .c-caras { width:82px; }
+.pasitos { display:inline-flex; align-items:center; gap:3px; }
+.pasitos .btn { padding:1px 6px; font-size:13px; line-height:1.25; min-width:22px;
+                justify-content:center; }
+.pasitos b { min-width:16px; text-align:center; font-size:12.5px; font-weight:700; }
+.c-img img { width:36px; height:36px; object-fit:contain; display:block; }
+.ficha { display:inline-block; min-width:19px; text-align:center; background:var(--marino);
+         color:var(--surface); border-radius:4px; padding:3px 5px; line-height:1;
+         font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:500; }
+:root[data-theme="dark"] .ficha, :root:not([data-theme="light"]) .ficha { color:var(--ground); }
+tr.viva .ficha { background:var(--acento); color:var(--acento-ink); }
+.nom { font-weight:600; }
+.sub { font-size:11px; color:var(--ink-3); }
+.donde { font-family:"Barlow Condensed",sans-serif; font-weight:700; font-size:14px;
+         color:var(--marino); letter-spacing:.03em; }
+
+/* ============================ estados ============================ */
+.velo { position:fixed; inset:0; background:color-mix(in srgb, var(--ground) 72%, transparent);
+        display:grid; place-items:center; z-index:50; }
+.velo div { width:32px; height:32px; border:3px solid var(--line-2);
+            border-top-color:var(--marino-2); border-radius:50%; animation:giro .8s linear infinite; }
+@keyframes giro { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .velo div { animation-duration:2.4s; } }
+
+.nota { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:60;
+        background:var(--ink); color:var(--ground); padding:10px 16px; border-radius:8px;
+        font-size:13px; max-width:64ch; box-shadow:0 8px 26px rgba(0,0,0,.3); }
+.nota.mal { background:var(--acento); color:var(--acento-ink); }
+
+/* ============================ vacío / ayuda ============================ */
+.guia { max-width:52ch; }
+.guia h3 { font-size:16px; margin-bottom:6px; }
+.guia p { margin:0 0 10px; color:var(--ink-2); font-size:13px; }
+.guia table { font-size:11.5px; margin-top:6px; }
+.guia th, .guia td { padding:4px 7px; text-align:left; }
+.guia thead th { position:static; }
+
+@media (max-width:1200px) {
+  .consola { grid-template-columns:264px 1fr; grid-template-rows:minmax(0,1fr) 290px; }
+  .ledger { grid-column:1 / -1; }
+}
+@media (max-width:840px) {
+  body { height:auto; }
+  .consola { grid-template-columns:1fr; grid-template-rows:auto auto 340px; height:auto; }
+  .rail { overflow:visible; }
+}
+</style>
+
+<div class="barra">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="1" y="1" width="30" height="30" rx="6" fill="var(--marino)"/>
+      <g fill="var(--surface)">
+        <rect x="6" y="7" width="7" height="6" rx="1"/><rect x="15" y="7" width="11" height="6" rx="1"/>
+        <rect x="6" y="15" width="11" height="4" rx="1"/><rect x="19" y="15" width="7" height="4" rx="1"/>
+        <rect x="6" y="21" width="20" height="4" rx="1"/>
+      </g>
+    </svg>
+    <b>Generador de Planogramas</b>
+  </div>
+  <div class="origen" id="origen" hidden></div>
+  <div class="acciones">
+    <button class="btn mini" id="btnPng" disabled title="Guardar el plano como imagen">PNG</button>
+    <button class="btn fuerte" id="btnPdf" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      Descargar PDF
+    </button>
+  </div>
+</div>
+
+<div class="consola">
+
+  <aside class="tarjeta rail">
+    <label class="soltar" id="soltar" for="archivo">
+      <input type="file" id="archivo" accept=".xlsx,.xlsm" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <div><b>Soltá el Excel acá</b><small>o hacé clic para buscarlo</small></div>
+    </label>
+
+    <div id="mandos" class="mandos" hidden>
+      <div class="campo" id="campoHoja" hidden>
+        <label for="hoja">Hoja del libro</label>
+        <select id="hoja"></select>
+      </div>
+      <div class="campo">
+        <label for="categoria">Título del planograma</label>
+        <input type="text" id="categoria" maxlength="60" autocomplete="off">
+        <p class="pista">Sale en la cenefa del mueble, arriba de cada hoja del PDF
+           y en el nombre del archivo.</p>
+      </div>
+
+      <div class="bloque">
+        <span class="rotulo">Medidas del mueble</span>
+        <div class="duo">
+          <div class="campo"><label for="ancho">Ancho (cm)</label>
+            <input type="number" id="ancho" value="122" min="20" max="600" step="1"></div>
+          <div class="campo"><label for="alto">Alto (cm)</label>
+            <input type="number" id="alto" value="180" min="40" max="400" step="1"></div>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <span class="rotulo">Niveles</span>
+        <div class="duo">
+          <div class="campo"><label for="nGanchos">Gancheras</label>
+            <input type="number" id="nGanchos" min="1" max="14" step="1" placeholder="Auto"></div>
+          <div class="campo"><label for="nTablillas">Tablillas</label>
+            <input type="number" id="nTablillas" min="1" max="14" step="1" placeholder="Auto"></div>
+        </div>
+        <p class="pista">Vacío = las decide solo, usando las menos posibles. Si ponés un
+          número, reparte los productos parejo en esa cantidad de filas.</p>
+      </div>
+
+      <div class="bloque">
+        <span class="rotulo">Caras por producto</span>
+        <label class="marca"><input type="checkbox" id="auto" checked>
+          <span>Rellenar el mueble automáticamente</span></label>
+        <div class="campo" id="campoCaras">
+          <label for="caras">Máximo de caras <output id="salidaCaras">4</output></label>
+          <input type="range" id="caras" value="4" min="1" max="8" step="1">
+        </div>
+        <p class="pista">Sin relleno automático va 1 cara por producto, o lo que diga la
+          columna <code>Caras</code> del Excel.</p>
+      </div>
+
+      <div class="cifras" id="cifras" hidden></div>
+      <div class="avisos" id="avisos" hidden></div>
+      <p class="pista" style="margin-top:auto;padding-top:8px;border-top:1px solid var(--line)">
+        Tu archivo se procesa dentro de esta página y no se envía a ningún servidor.</p>
+    </div>
+  </aside>
+
+  <main class="tarjeta">
+    <div class="cabecera">
+      <div class="pestanas" id="pestanas" role="tablist"></div>
+      <span class="chip" id="chipManual" hidden>Ajustado a mano</span>
+      <button class="btn mini" id="btnAuto" hidden>Volver al automático</button>
+      <span class="chip fuera" id="chipFuera" hidden></span>
+      <button class="btn mini" id="btnDevolver" hidden>Devolver al plano</button>
+      <div class="zoom">
+        <button class="btn mini" id="zMenos" title="Alejar" aria-label="Alejar">−</button>
+        <button class="btn mini" id="zAjustar">Ajustar</button>
+        <button class="btn mini" id="zMas" title="Acercar" aria-label="Acercar">+</button>
+      </div>
+    </div>
+
+    <div class="tira" id="tira" hidden>
+      <div class="quien">
+        <span class="ficha" id="tiraNum">1</span>
+        <b id="tiraNombre"></b>
+        <small id="tiraDonde"></small>
+      </div>
+      <div class="pasos">
+        <button class="btn" id="carasMenos" aria-label="Quitar una cara">−</button>
+        <span class="txt" id="carasTexto">1 cara</span>
+        <button class="btn" id="carasMas" aria-label="Agregar una cara">+</button>
+      </div>
+      <div class="cruz" role="group" aria-label="Mover el producto">
+        <button class="btn arr" id="movArr" title="Subir de fila" aria-label="Subir de fila">↑</button>
+        <button class="btn izq" id="movIzq" title="Mover a la izquierda" aria-label="Mover a la izquierda">←</button>
+        <button class="btn aba" id="movAba" title="Bajar de fila" aria-label="Bajar de fila">↓</button>
+        <button class="btn der" id="movDer" title="Mover a la derecha" aria-label="Mover a la derecha">→</button>
+      </div>
+      <button class="btn peligro" id="btnQuitar" title="Sacar del plano (Supr)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
+        Quitar
+      </button>
+      <button class="btn mini" id="tiraCerrar" aria-label="Quitar la selección">Listo</button>
+    </div>
+    <div class="mesa" id="mesa">
+      <div class="hueco guia" id="hueco">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg>
+        <h3>Cargá el Excel de la categoría</h3>
+        <p>Se arma un mueble de 122 × 180 cm: los productos <b>colgados</b> arriba en el panel
+           de ganchos y los de <b>tablilla</b> abajo, lo más alto y pesado al piso.
+           Después podés <b>arrastrar cada producto</b> a donde lo quieras.</p>
+        <table>
+          <thead><tr><th>Columna</th><th>Contenido</th></tr></thead>
+          <tbody>
+            <tr><td><code>imágenes</code></td><td>la foto dentro de la celda</td></tr>
+            <tr><td><code>C. Barra</code></td><td>código de barra</td></tr>
+            <tr><td><code>Material</code></td><td>código interno</td></tr>
+            <tr><td><code>Descripcion</code></td><td>nombre del producto</td></tr>
+            <tr><td><code>Tipo de Exhibicion</code></td><td><code>Colgado</code> o <code>Tablilla</code></td></tr>
+            <tr><td><code>Alto (cm)</code> <code>Ancho (cm)</code> <code>Profundo/Largo (cm)</code></td><td>medidas del empaque</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <section class="tarjeta ledger">
+    <div class="cabecera">
+      <h2>Detalle de productos</h2>
+      <input type="search" class="buscador" id="buscar" placeholder="Buscar…" disabled>
+    </div>
+    <div class="lista" id="lista"></div>
+  </section>
+</div>
+
+<div class="velo" id="velo" hidden><div></div></div>
+<div class="nota" id="nota" hidden></div>
+
+<script>
+"use strict";
+(function () {
+
+/* ==================================================================== *
+ *  1. Utilidades                                                       *
+ * ==================================================================== */
+const $ = s => document.querySelector(s);
+const el = {
+  soltar:$("#soltar"), archivo:$("#archivo"), mandos:$("#mandos"), campoHoja:$("#campoHoja"),
+  hoja:$("#hoja"), categoria:$("#categoria"), ancho:$("#ancho"), alto:$("#alto"),
+  nGanchos:$("#nGanchos"), nTablillas:$("#nTablillas"),
+  caras:$("#caras"), salidaCaras:$("#salidaCaras"), auto:$("#auto"), campoCaras:$("#campoCaras"),
+  cifras:$("#cifras"), avisos:$("#avisos"), origen:$("#origen"), pestanas:$("#pestanas"),
+  mesa:$("#mesa"), hueco:$("#hueco"), lista:$("#lista"), buscar:$("#buscar"),
+  btnPdf:$("#btnPdf"), btnPng:$("#btnPng"), velo:$("#velo"), nota:$("#nota"),
+  chipManual:$("#chipManual"), btnAuto:$("#btnAuto"), tira:$("#tira"),
+  chipFuera:$("#chipFuera"), btnDevolver:$("#btnDevolver"),
+  tiraNum:$("#tiraNum"), tiraNombre:$("#tiraNombre"), tiraDonde:$("#tiraDonde"),
+  carasTexto:$("#carasTexto")
+};
+
+const estado = {
+  productos:null, hojas:[], hoja:"", nombreArchivo:"", libro:null,
+  modulos:null, cfg:null, categoria:"", modulo:0,
+  zoom:1, ajustar:true, viva:null, trabajos:0,
+  manual:null,           // null = acomodo automático; si no, una disposición por módulo
+  quitados:new Set()     // productos sacados del plano a mano
+};
+
+function nodo(tag, clase, texto) {
+  const n = document.createElement(tag);
+  if (clase) n.className = clase;
+  if (texto != null) n.textContent = texto;
+  return n;
+}
+const pct = (v, total) => (100 * v / total).toFixed(4) + "%";
+
+let relojNota;
+function avisar(msg, mal) {
+  el.nota.textContent = msg;
+  el.nota.className = "nota" + (mal ? " mal" : "");
+  el.nota.hidden = false;
+  clearTimeout(relojNota);
+  relojNota = setTimeout(() => { el.nota.hidden = true; }, mal ? 8000 : 3500);
+}
+function trabajando(si) {
+  estado.trabajos = Math.max(0, estado.trabajos + (si ? 1 : -1));
+  el.velo.hidden = estado.trabajos === 0;
+}
+// cede el hilo para que se vea el spinner; con rAF se colgaría en pestañas de fondo
+const esperar = () => new Promise(r => setTimeout(r, 0));
+
+const COMBINANTES = new RegExp("[\\u0300-\\u036f]", "g");
+function sinTildes(s) {
+  return (s == null ? "" : String(s)).normalize("NFD").replace(COMBINANTES, "");
+}
+function normalizar(s) {
+  return sinTildes(s).toLowerCase().replace(/[./\-()\[\]]/g, " ").replace(/\s+/g, " ").trim();
+}
+function aNumero(v) {
+  if (v == null) return null;
+  const s = String(v).replace(",", ".").replace(/[^0-9.\-]/g, "");
+  if (!s || s === "-" || s === ".") return null;
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+function limpiarCodigo(v) {
+  if (v == null) return "";
+  let s = String(v).trim();
+  if (/^-?\d+\.0+$/.test(s)) s = s.split(".")[0];
+  else if (/^\d+(\.\d+)?[eE]\+?\d+$/.test(s)) s = Number(s).toFixed(0);
+  return s;
+}
+const redondo = v => String(Math.round(v * 100) / 100);
+function hoyTexto() {                       // dd/mm/aaaa, sin depender del locale
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
+}
+
+/* ==================================================================== *
+ *  2. Lector de ZIP (el .xlsx es un zip)                               *
+ * ==================================================================== */
+async function abrirZip(buffer) {
+  const dv = new DataView(buffer), u8 = new Uint8Array(buffer);
+  let fin = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { fin = i; break; }
+  }
+  if (fin < 0) throw new Error("El archivo no es un .xlsx válido.");
+  const total = dv.getUint16(fin + 10, true);
+  let off = dv.getUint32(fin + 16, true);
+  const dec = new TextDecoder("utf-8");
+  const entradas = new Map();
+  for (let i = 0; i < total; i++) {
+    if (off + 46 > u8.length || dv.getUint32(off, true) !== 0x02014b50) break;
+    const metodo = dv.getUint16(off + 10, true);
+    const comprimido = dv.getUint32(off + 20, true);
+    const nl = dv.getUint16(off + 28, true);
+    const xl = dv.getUint16(off + 30, true);
+    const cl = dv.getUint16(off + 32, true);
+    const local = dv.getUint32(off + 42, true);
+    entradas.set(dec.decode(u8.subarray(off + 46, off + 46 + nl)), { metodo, comprimido, local });
+    off += 46 + nl + xl + cl;
+  }
+  return {
+    nombres: () => [...entradas.keys()],
+    tiene: n => entradas.has(n),
+    async bytes(nombre) {
+      const e = entradas.get(nombre);
+      if (!e) return null;
+      if (dv.getUint32(e.local, true) !== 0x04034b50) return null;
+      const nl = dv.getUint16(e.local + 26, true), xl = dv.getUint16(e.local + 28, true);
+      const ini = e.local + 30 + nl + xl;
+      const crudo = u8.subarray(ini, ini + e.comprimido);
+      if (e.metodo === 0) return crudo.slice();
+      if (e.metodo !== 8) throw new Error("El .xlsx usa una compresión no soportada.");
+      const flujo = new Blob([crudo]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(flujo).arrayBuffer());
+    },
+    async texto(nombre) {
+      const b = await this.bytes(nombre);
+      return b ? dec.decode(b) : null;
+    }
+  };
+}
+
+/* ==================================================================== *
+ *  3. Lectura del Excel, incluidas las imágenes DENTRO de la celda     *
+ * ==================================================================== */
+const NS = {
+  hoja:"http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+  rd:"http://schemas.microsoft.com/office/spreadsheetml/2017/richdata",
+  paq:"http://schemas.openxmlformats.org/package/2006/relationships",
+  doc:"http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+  xdr:"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
+  a:"http://schemas.openxmlformats.org/drawingml/2006/main"
+};
+const COLGADO = "Colgado", TABLILLA = "Tablilla";
+
+function xml(texto) {
+  const d = new DOMParser().parseFromString(texto, "application/xml");
+  if (d.getElementsByTagName("parsererror").length) throw new Error("XML ilegible dentro del Excel.");
+  return d;
+}
+const hijos = (n, ns, tag) => Array.from(n.getElementsByTagNameNS(ns, tag));
+
+const SINONIMOS = {
+  foto:["imagenes","imagen","fotos","foto","img","picture"],
+  barra:["c barra","codigo de barra","codigo de barras","cod barra","codigo barra","barra","ean","upc","codigo ean"],
+  material:["material","codigo","cod","sku","item","articulo","codigo material","cod material"],
+  descripcion:["descripcion","descripcion producto","producto","nombre","detalle"],
+  exhibicion:["tipo de exhibicion","tipo exhibicion","exhibicion","tipo","display"],
+  alto:["alto cm","alto","altura cm","altura","alto centimetros"],
+  ancho:["ancho cm","ancho","anchura cm","anchura"],
+  largo:["profundo largo cm","profundo largo","profundidad cm","profundo cm","profundo",
+         "largo cm","largo","fondo cm","fondo","profundidad"],
+  caras:["caras","cara","facings","facing","frentes","frente"]
+};
+function campoDe(texto) {
+  const n = normalizar(texto);
+  if (!n) return null;
+  for (const [campo, ops] of Object.entries(SINONIMOS)) if (ops.includes(n)) return campo;
+  for (const [campo, ops] of Object.entries(SINONIMOS))
+    for (const o of ops) if (n.startsWith(o) || o.startsWith(n)) return campo;
+  return null;
+}
+const letrasDe = ref => (String(ref).match(/^[A-Z]+/) || [""])[0];
+function indiceCol(letras) {
+  let n = 0;
+  for (const c of letras) n = n * 26 + (c.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+async function abrirLibro(buffer) {
+  const zip = await abrirZip(buffer);
+
+  const sst = [];
+  const txtSst = await zip.texto("xl/sharedStrings.xml");
+  if (txtSst) for (const si of hijos(xml(txtSst), NS.hoja, "si"))
+    sst.push(hijos(si, NS.hoja, "t").map(t => t.textContent || "").join(""));
+
+  const wb = await zip.texto("xl/workbook.xml");
+  const rels = await zip.texto("xl/_rels/workbook.xml.rels");
+  if (!wb || !rels) throw new Error("El libro está incompleto o dañado.");
+  const destino = {};
+  for (const r of hijos(xml(rels), NS.paq, "Relationship")) {
+    let t = r.getAttribute("Target") || "";
+    t = t.startsWith("/") ? t.slice(1) : "xl/" + t.replace("../", "");
+    destino[r.getAttribute("Id")] = t;
+  }
+  const hojas = [];
+  for (const s of hijos(xml(wb), NS.hoja, "sheet")) {
+    const oculta = s.getAttribute("state");
+    if (oculta === "hidden" || oculta === "veryHidden") continue;
+    const ruta = destino[s.getAttributeNS(NS.doc, "id")];
+    if (ruta && zip.tiene(ruta)) hojas.push({ nombre: s.getAttribute("name"), ruta });
+  }
+  if (!hojas.length) throw new Error("El libro no tiene hojas legibles.");
+
+  const ricas = await imagenesEnCelda(zip);
+  return { zip, sst, hojas, ricas, cache: new Map() };
+}
+
+/* Cadena de las "imágenes en celda": metadata -> richValue -> rel -> xl/media */
+async function imagenesEnCelda(zip) {
+  const salida = new Map();                       // vm (1-based) -> ruta en xl/media
+  const [meta, rv, rel, relRels] = await Promise.all([
+    zip.texto("xl/metadata.xml"),
+    zip.texto("xl/richData/rdrichvalue.xml"),
+    zip.texto("xl/richData/richValueRel.xml"),
+    zip.texto("xl/richData/_rels/richValueRel.xml.rels")
+  ]);
+  if (!meta || !rv || !rel || !relRels) return salida;
+
+  const medio = {};
+  for (const r of hijos(xml(relRels), NS.paq, "Relationship")) {
+    const t = (r.getAttribute("Target") || "").replace("../", "");
+    medio[r.getAttribute("Id")] = t.startsWith("xl/") ? t : "xl/" + t;
+  }
+  const ids = Array.from(xml(rel).documentElement.children)
+                   .map(e => e.getAttributeNS(NS.doc, "id"));
+  const aRel = hijos(xml(rv), NS.rd, "rv").map(e => {
+    const v = hijos(e, NS.rd, "v");
+    return v.length ? parseInt(v[0].textContent, 10) : null;
+  });
+
+  const dm = xml(meta);
+  let tipoRico = null;
+  hijos(dm, NS.hoja, "metadataType").forEach((t, i) => {
+    if (t.getAttribute("name") === "XLRICHVALUE") tipoRico = i + 1;
+  });
+  const futuro = [];
+  for (const fm of hijos(dm, NS.hoja, "futureMetadata")) {
+    if (fm.getAttribute("name") !== "XLRICHVALUE") continue;
+    for (const bk of hijos(fm, NS.hoja, "bk")) {
+      const rvb = hijos(bk, NS.rd, "rvb")[0];
+      futuro.push(rvb ? parseInt(rvb.getAttribute("i"), 10) : null);
+    }
+  }
+  let vm = 0;
+  for (const vmeta of hijos(dm, NS.hoja, "valueMetadata")) {
+    for (const bk of hijos(vmeta, NS.hoja, "bk")) {
+      vm++;
+      const rc = hijos(bk, NS.hoja, "rc")[0];
+      if (!rc) continue;
+      const t = rc.getAttribute("t");
+      if (tipoRico != null && t != null && t !== String(tipoRico)) continue;
+      const fi = parseInt(rc.getAttribute("v"), 10);
+      const ri = futuro[fi];
+      if (ri == null) continue;
+      const ir = aRel[ri];
+      if (ir == null || ir >= ids.length) continue;
+      const ruta = medio[ids[ir]];
+      if (ruta && zip.tiene(ruta)) salida.set(vm, ruta);
+    }
+  }
+  return salida;
+}
+
+/* Imágenes del formato clásico: flotando ancladas a una celda */
+async function imagenesAncladas(libro, rutaHoja) {
+  const mapa = new Map();
+  const base = rutaHoja.split("/").pop();
+  const rels = await libro.zip.texto(rutaHoja.replace(/\/[^/]+$/, "") + "/_rels/" + base + ".rels");
+  if (!rels) return mapa;
+  const dibujos = hijos(xml(rels), NS.paq, "Relationship")
+    .filter(r => (r.getAttribute("Type") || "").endsWith("/drawing"))
+    .map(r => (r.getAttribute("Target") || "").replace("../", ""));
+  for (let d of dibujos) {
+    const ruta = d.startsWith("xl/") ? d : "xl/" + d;
+    const cuerpo = await libro.zip.texto(ruta);
+    if (!cuerpo) continue;
+    const dRels = await libro.zip.texto(ruta.replace(/\/[^/]+$/, "") + "/_rels/" + ruta.split("/").pop() + ".rels");
+    const incrust = {};
+    if (dRels) for (const r of hijos(xml(dRels), NS.paq, "Relationship")) {
+      const t = (r.getAttribute("Target") || "").replace("../", "");
+      incrust[r.getAttribute("Id")] = t.startsWith("xl/") ? t : "xl/" + t;
+    }
+    for (const anc of Array.from(xml(cuerpo).documentElement.children)) {
+      const desde = hijos(anc, NS.xdr, "from")[0];
+      const blip = hijos(anc, NS.a, "blip")[0];
+      if (!desde || !blip) continue;
+      const fila = parseInt(hijos(desde, NS.xdr, "row")[0].textContent, 10);
+      const col = parseInt(hijos(desde, NS.xdr, "col")[0].textContent, 10);
+      const ruta2 = incrust[blip.getAttributeNS(NS.doc, "embed")];
+      if (ruta2 && libro.zip.tiene(ruta2)) mapa.set(fila + "," + col, ruta2);
+    }
+  }
+  return mapa;
+}
+
+function valorCelda(libro, c) {
+  const vm = c.getAttribute("vm");
+  if (vm) {
+    const ruta = libro.ricas.get(parseInt(vm, 10));
+    if (ruta) return { foto: ruta };
+  }
+  const t = c.getAttribute("t");
+  if (t === "inlineStr") {
+    const is = hijos(c, NS.hoja, "is")[0];
+    return is ? hijos(is, NS.hoja, "t").map(x => x.textContent || "").join("") : null;
+  }
+  const v = hijos(c, NS.hoja, "v")[0];
+  if (!v || v.textContent == null) return null;
+  if (t === "s") { const i = parseInt(v.textContent, 10); return libro.sst[i] ?? null; }
+  if (t === "e") return null;
+  return v.textContent;
+}
+
+async function leerProductos(libro, nombreHoja) {
+  const hoja = libro.hojas.find(h => h.nombre === nombreHoja) || libro.hojas[0];
+  const doc = xml(await libro.zip.texto(hoja.ruta));
+  const filas = [];
+  for (const fila of hijos(doc, NS.hoja, "row")) {
+    const celdas = {};
+    for (const c of hijos(fila, NS.hoja, "c")) {
+      const L = letrasDe(c.getAttribute("r") || "");
+      if (L) celdas[L] = valorCelda(libro, c);
+    }
+    filas.push({ n: parseInt(fila.getAttribute("r"), 10), celdas });
+  }
+
+  // fila de encabezados: la que más columnas conocidas reconoce
+  let filaEnc = 0, mapa = {}, mejor = 0;
+  for (const { n, celdas } of filas.slice(0, 20)) {
+    const m = {}; let puntos = 0;
+    for (const [L, v] of Object.entries(celdas)) {
+      if (v && typeof v === "object") continue;
+      const campo = campoDe(v);
+      if (campo && !(campo in m)) { m[campo] = L; puntos++; }
+    }
+    if (puntos > mejor) { mejor = puntos; filaEnc = n; mapa = m; }
+  }
+  if (mejor < 3) throw new Error(
+    "No se reconocieron los encabezados. La hoja necesita columnas como: imágenes, " +
+    "C. Barra, Material, Descripcion, Tipo de Exhibicion, Alto (cm), Ancho (cm), Profundo/Largo (cm).");
+  const faltan = ["descripcion","exhibicion","ancho","alto","largo"].filter(f => !(f in mapa));
+  if (faltan.length) throw new Error("Faltan columnas obligatorias: " + faltan.join(", ") + ".");
+
+  const ancladas = await imagenesAncladas(libro, hoja.ruta);
+  const colFoto = mapa.foto;
+  const productos = [], avisos = [];
+
+  for (const { n, celdas } of filas) {
+    if (n <= filaEnc) continue;
+    const dame = campo => (campo in mapa ? celdas[mapa[campo]] : null);
+    const desc = String(dame("descripcion") ?? "").trim();
+    let alto = aNumero(dame("alto")), largo = aNumero(dame("largo"));
+    const ancho = aNumero(dame("ancho"));
+    if (!desc && alto == null && ancho == null) continue;
+    if (!desc) { avisos.push("Fila " + n + ": sin descripción, se omite."); continue; }
+    if (!ancho || ancho <= 0) { avisos.push("Fila " + n + " (" + desc + "): «Ancho» inválido, se omite."); continue; }
+    if (alto == null || alto <= 0) alto = 1;
+    if (largo == null || largo <= 0) largo = alto;
+
+    const bruto = normalizar(dame("exhibicion"));
+    let tipo;
+    if (bruto.startsWith("colg") || ["gancho","peg","hook"].includes(bruto)) tipo = COLGADO;
+    else if (bruto.startsWith("tabl") || ["estante","repisa","shelf"].includes(bruto)) tipo = TABLILLA;
+    else {
+      tipo = TABLILLA;
+      avisos.push("Fila " + n + " (" + desc + "): exhibición «" + (dame("exhibicion") ?? "") +
+                  "» no reconocida, se usa Tablilla.");
+    }
+
+    let ruta = null;
+    if (colFoto) {
+      const v = celdas[colFoto];
+      if (v && typeof v === "object" && v.foto) ruta = v.foto;
+    }
+    if (!ruta) ruta = ancladas.get((n - 1) + "," + (colFoto ? indiceCol(colFoto) : 0)) || null;
+    if (!ruta) avisos.push("Fila " + n + " (" + desc + "): sin imagen.");
+
+    const caras = aNumero(dame("caras"));
+    productos.push({
+      idx: productos.length, fila: n,
+      barra: limpiarCodigo(dame("barra")), material: limpiarCodigo(dame("material")),
+      descripcion: desc, exhibicion: tipo, exhibicionExcel: tipo, alto, ancho, largo,
+      rutaFoto: ruta, foto: null,
+      carasFijas: caras && caras >= 1 ? Math.round(caras) : null,
+      numero: 0, ubicacion: "", nivel: ""
+    });
+  }
+  if (!productos.length) throw new Error("No se encontró ningún producto debajo de los encabezados.");
+  return { productos, avisos };
+}
+
+/* --- geometría del producto según cómo se exhibe --- */
+const esTablilla = p => p.exhibicion === TABLILLA;
+const caraAncho = p => p.ancho;
+const caraAlto = p => (esTablilla(p) ? p.alto : p.largo);
+const medidasDe = p => redondo(p.alto) + " × " + redondo(p.ancho) + " × " + redondo(p.largo);
+
+/* ==================================================================== *
+ *  4. Fotos: recorte, aplanado sobre blanco y JPEG para el PDF         *
+ * ==================================================================== */
+const LADO_MAX = 520;
+
+function base64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+async function prepararFoto(bytes) {
+  const bmp = await createImageBitmap(new Blob([bytes]));
+  const lienzo = document.createElement("canvas");
+  lienzo.width = bmp.width; lienzo.height = bmp.height;
+  const ctx = lienzo.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bmp, 0, 0);
+
+  // recorte: descarta el marco transparente o casi blanco que traen las fotos
+  const d = ctx.getImageData(0, 0, bmp.width, bmp.height).data;
+  let x0 = bmp.width, y0 = bmp.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < bmp.height; y++) {
+    for (let x = 0; x < bmp.width; x++) {
+      const i = (y * bmp.width + x) * 4;
+      const a = d[i + 3];
+      if (a <= 8) continue;
+      if (d[i] > 243 && d[i + 1] > 243 && d[i + 2] > 243) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (x1 - x0 < 4 || y1 - y0 < 4) { x0 = 0; y0 = 0; x1 = bmp.width - 1; y1 = bmp.height - 1; }
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+
+  const f = Math.min(1, LADO_MAX / Math.max(cw, ch));
+  const salida = document.createElement("canvas");
+  salida.width = Math.max(1, Math.round(cw * f));
+  salida.height = Math.max(1, Math.round(ch * f));
+  const sctx = salida.getContext("2d");
+  sctx.fillStyle = "#fff";
+  sctx.fillRect(0, 0, salida.width, salida.height);
+  sctx.imageSmoothingQuality = "high";
+  sctx.drawImage(bmp, x0, y0, cw, ch, 0, 0, salida.width, salida.height);
+  bmp.close && bmp.close();
+
+  const blob = await new Promise(r => salida.toBlob(r, "image/jpeg", 0.85));
+  const jpeg = new Uint8Array(await blob.arrayBuffer());
+  return {
+    ancho: salida.width, alto: salida.height, jpeg,
+    url: "data:image/jpeg;base64," + base64(jpeg),
+    bmp: await createImageBitmap(salida)
+  };
+}
+
+async function cargarFotos(libro, productos) {
+  const vistas = new Map();
+  for (const p of productos) {
+    if (!p.rutaFoto) continue;
+    if (!vistas.has(p.rutaFoto)) {
+      try {
+        vistas.set(p.rutaFoto, await prepararFoto(await libro.zip.bytes(p.rutaFoto)));
+      } catch (e) { vistas.set(p.rutaFoto, null); }
+      await esperar();                       // deja respirar a la interfaz
+    }
+    p.foto = vistas.get(p.rutaFoto);
+  }
+}
+
+/* ==================================================================== *
+ *  5. Motor de acomodo                                                 *
+ * ==================================================================== */
+function config(extra) {
+  return Object.assign({
+    anchoMueble:122, altoMueble:180, margenLados:2, cenefa:14, zocalo:12,
+    espesor:2, aire:4, huelgoGancho:4, huelgoZonas:6,
+    sepX:1.2, sepCara:0.3, maxCaras:4, autoCaras:true,
+    nGancheras:null, nTablillas:null        // null = las decide el acomodo
+  }, extra || {});
+}
+const anchoUtil = cfg => cfg.anchoMueble - 2 * cfg.margenLados;
+
+function topeCarasPorAncho(p, cfg) {
+  let n = 1;
+  for (;;) {
+    if ((n + 1) * caraAncho(p) + n * cfg.sepCara > anchoUtil(cfg)) return n;
+    n++;
+  }
+}
+function bloquesDe(lista, caras, cfg) {
+  return lista.map(p => {
+    const n = Math.max(1, Math.min(caras[p.idx] || 1, topeCarasPorAncho(p, cfg)));
+    return { p, n, w: n * caraAncho(p) + (n - 1) * cfg.sepCara };
+  });
+}
+/* Auto: la menor cantidad de filas posible, llenando de izquierda a derecha. */
+function repartirFilas(bloques, cfg) {
+  const filas = []; let cur = [], ancho = 0;
+  for (const b of bloques) {
+    const suma = cur.length ? cfg.sepX + b.w : b.w;
+    if (cur.length && ancho + suma > anchoUtil(cfg) + 1e-9) { filas.push(cur); cur = [b]; ancho = b.w; }
+    else { cur.push(b); ancho += suma; }
+  }
+  if (cur.length) filas.push(cur);
+  return filas;
+}
+
+/* Cantidad fija: reparte en exactamente N filas dejándolas lo más parejas posible
+   (programación dinámica: minimiza el ancho de la fila más llena).
+   Devuelve null si con N filas alguna se pasaría del ancho útil. */
+function partirEnN(bloques, N, cfg) {
+  const n = bloques.length;
+  if (!n) return [];
+  N = Math.max(1, Math.min(N, n));                 // no hay filas vacías
+  const util = anchoUtil(cfg);
+  const acum = [0];
+  bloques.forEach(b => acum.push(acum[acum.length - 1] + b.w));
+  const ancho = (i, j) => acum[j + 1] - acum[i] + cfg.sepX * (j - i);
+
+  const INF = Infinity, dp = [], corte = [];
+  for (let k = 0; k <= N; k++) {
+    dp.push(new Array(n + 1).fill(INF));
+    corte.push(new Array(n + 1).fill(-1));
+  }
+  dp[0][n] = 0;
+  for (let k = 1; k <= N; k++) {
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = i; j < n; j++) {
+        const a = ancho(i, j);
+        if (a > util + 1e-9) break;
+        const resto = dp[k - 1][j + 1];
+        if (resto === INF) continue;
+        const peor = Math.max(a, resto);
+        if (peor < dp[k][i]) { dp[k][i] = peor; corte[k][i] = j; }
+      }
+    }
+  }
+  if (dp[N][0] === INF) return null;
+
+  const filas = [];
+  let i = 0;
+  for (let k = N; k >= 1; k--) {
+    const j = corte[k][i];
+    filas.push(bloques.slice(i, j + 1));
+    i = j + 1;
+  }
+  return filas;
+}
+/* Reparte el sobrante en huecos iguales: mismo aire entre productos y en las orillas.
+   Si la fila viene tan llena que no alcanza para eso, deja la separación mínima y
+   centra el conjunto. */
+function colocarFila(nivel, bloques, cfg, arriba) {
+  const n = bloques.length;
+  const total = bloques.reduce((s, b) => s + b.w, 0);
+  let hueco = (anchoUtil(cfg) - total) / (n + 1);
+  let x;
+  if (hueco >= cfg.sepX) {
+    x = cfg.margenLados + hueco;
+  } else {
+    hueco = cfg.sepX;
+    x = (cfg.anchoMueble - (total + hueco * (n - 1))) / 2;
+  }
+  for (const b of bloques) {
+    let bx = x;
+    for (let i = 0; i < b.n; i++) {
+      const h = caraAlto(b.p);
+      nivel.caras.push({
+        p: b.p, x: bx, y: arriba ? nivel.barra - h : nivel.base,
+        w: caraAncho(b.p), h, primera: i === 0
+      });
+      bx += caraAncho(b.p) + cfg.sepCara;
+    }
+    x += b.w + hueco;
+  }
+}
+
+/* Monta un módulo a partir de filas YA decididas.
+   filasG va de arriba hacia abajo; filasT, de abajo hacia arriba.
+   Devuelve null si el acomodo no entra en el mueble. */
+function montar(filasG, filasT, cfg) {
+  const limpiar = fs => fs.map(f => f.filter(Boolean)).filter(f => f.length);
+  filasG = limpiar(filasG);
+  filasT = limpiar(filasT);
+
+  const aBloques = fila => fila.map(it => {
+    const n = Math.max(1, Math.min(it.n, topeCarasPorAncho(it.p, cfg)));
+    return { p: it.p, n, w: n * caraAncho(it.p) + (n - 1) * cfg.sepCara };
+  });
+  const bG = filasG.map(aBloques), bT = filasT.map(aBloques);
+  for (const f of bG.concat(bT)) {
+    const total = f.reduce((s, b) => s + b.w, 0) + cfg.sepX * (f.length - 1);
+    if (total > anchoUtil(cfg) + 1e-9) return null;
+  }
+
+  const alturas = bT.map(f => Math.max(...f.map(b => caraAlto(b.p))));
+  let aire = cfg.aire;
+  if (bT.length && !bG.length) {
+    const libre = cfg.altoMueble - cfg.cenefa - cfg.zocalo;
+    const usado = alturas.reduce((a, b) => a + b, 0) + cfg.espesor * (bT.length - 1);
+    aire = Math.max(aire, Math.min((libre - usado) / bT.length, 30));
+  }
+
+  let y = cfg.zocalo;
+  const estantes = [];
+  bT.forEach((fila, i) => {
+    const nivel = { tipo:"tablilla", indice:0, orden:i, caras:[], alto:alturas[i],
+                    base:0, barra:0, tabla:0, conTabla:false };
+    if (i > 0) { nivel.tabla = y; nivel.conTabla = true; y += cfg.espesor; }
+    nivel.base = y;
+    colocarFila(nivel, fila, cfg, false);
+    estantes.push(nivel);
+    y += alturas[i] + aire;
+  });
+  const topeEstantes = bT.length ? y : cfg.zocalo;
+  if (topeEstantes > cfg.altoMueble - cfg.cenefa + 1e-9) return null;
+  estantes.slice().reverse().forEach((n, i) => { n.indice = i + 1; });
+
+  const techo = cfg.altoMueble - cfg.cenefa;
+  let piso = topeEstantes;
+  if (bG.length && bT.length) piso += cfg.huelgoZonas;
+  if (bG.length && piso > techo) return null;
+
+  const ganchos = [];
+  if (bG.length) {
+    const hs = bG.map(f => Math.max(...f.map(b => caraAlto(b.p))));
+    const falta = hs.reduce((a, b) => a + b, 0) + cfg.huelgoGancho * (bG.length + 1);
+    const hay = techo - piso;
+    if (falta > hay + 1e-9) return null;
+    const extra = (hay - falta) / (bG.length + 1);
+    let barra = techo;
+    bG.forEach((fila, i) => {
+      barra -= cfg.huelgoGancho + extra;
+      const nivel = { tipo:"gancho", indice:i + 1, orden:i, caras:[], alto:hs[i],
+                      base:0, barra, tabla:0, conTabla:false };
+      colocarFila(nivel, fila, cfg, true);
+      ganchos.push(nivel);
+      barra -= hs[i];
+    });
+  } else if (!bT.length) return null;
+
+  const modulo = {
+    indice:1, ganchos, estantes, topeEstantes, piso,
+    niveles: ganchos.concat(estantes.slice().reverse()), productos: [],
+    filasG: bG.map(f => f.map(b => ({ p:b.p, n:b.n }))),
+    filasT: bT.map(f => f.map(b => ({ p:b.p, n:b.n })))
+  };
+  numerar(modulo);
+  return modulo;
+}
+
+/* El acomodo automático: reparte en filas y después monta. */
+function intentarAcomodo(productos, caras, cfg) {
+  const colgados = productos.filter(p => !esTablilla(p));
+  // lo más alto (y pesado) al piso; el orden del Excel manda entre iguales
+  const tablilla = productos.filter(esTablilla)
+    .map((p, i) => [p, i]).sort((a, b) => (caraAlto(b[0]) - caraAlto(a[0])) || (a[1] - b[1]))
+    .map(x => x[0]);
+  const aFila = bl => bl.map(b => ({ p:b.p, n:b.n }));
+  const reparto = (lista, fijas) => {
+    const bl = bloquesDe(lista, caras, cfg);
+    return fijas == null ? repartirFilas(bl, cfg) : partirEnN(bl, fijas, cfg);
+  };
+  const fG = reparto(colgados, cfg.nGancheras);
+  const fT = reparto(tablilla, cfg.nTablillas);
+  if (!fG || !fT) return null;                     // con esa cantidad de filas no entra
+  return montar(fG.map(aFila), fT.map(aFila), cfg);
+}
+
+/* Numeración corrida entre módulos y totales de cada uno. */
+function finalizar(modulos, cfg) {
+  let corrido = 0;
+  modulos.forEach((mod, i) => {
+    mod.indice = i + 1;
+    mod.productos.forEach(p => { p.numero += corrido; p.modulo = mod.indice; });
+    corrido += mod.productos.length;
+    mod.caras = mod.niveles.reduce((s, nv) => s + nv.caras.length, 0);
+    mod.ocupacion = mod.niveles.length
+      ? Math.round(1000 * mod.niveles.reduce((s, nv) =>
+          s + nv.caras.reduce((t, c) => t + c.w, 0), 0) /
+          (anchoUtil(cfg) * mod.niveles.length)) / 10
+      : 0;
+  });
+  return modulos;
+}
+
+function numerar(modulo) {
+  let n = 0; const vistos = new Set();
+  for (const nivel of modulo.niveles) {
+    for (const c of nivel.caras.slice().sort((a, b) => a.x - b.x)) {
+      if (!c.primera || vistos.has(c.p.idx)) continue;
+      vistos.add(c.p.idx);
+      c.p.numero = ++n;
+      c.p.ubicacion = (nivel.tipo === "gancho" ? "G" : "T") + nivel.indice;
+      c.p.nivel = (nivel.tipo === "gancho" ? "Gancho fila " : "Tablilla ") + nivel.indice;
+      modulo.productos.push(c.p);
+    }
+  }
+}
+const carasBase = ps => Object.fromEntries(ps.map(p => [p.idx, p.carasFijas || 1]));
+
+function optimizar(productos, cfg) {
+  let caras = carasBase(productos);
+  let mod = intentarAcomodo(productos, caras, cfg);
+  if (!mod || !cfg.autoCaras) return mod;
+  const topes = Object.fromEntries(productos.map(p =>
+    [p.idx, Math.min(cfg.maxCaras, topeCarasPorAncho(p, cfg))]));
+  for (;;) {
+    const orden = productos.slice().sort((a, b) => (caras[a.idx] - caras[b.idx]) || (a.idx - b.idx));
+    let avanzo = false;
+    for (const p of orden) {
+      if (caras[p.idx] >= topes[p.idx]) continue;
+      const prueba = Object.assign({}, caras);
+      prueba[p.idx]++;
+      const cand = intentarAcomodo(productos, prueba, cfg);
+      if (cand) { caras = prueba; mod = cand; avanzo = true; break; }
+    }
+    if (!avanzo) return mod;
+  }
+}
+
+function armarModulos(productos, cfg) {
+  const avisos = [], utiles = [];
+  for (const p of productos) {
+    if (caraAncho(p) > anchoUtil(cfg))
+      avisos.push(p.descripcion + ": " + redondo(caraAncho(p)) + " cm de ancho, no entra en un mueble de " +
+                  redondo(cfg.anchoMueble) + " cm.");
+    else utiles.push(p);
+  }
+  if (!utiles.length) throw new Error("Ningún producto entra en el mueble con esas medidas.");
+
+  const modulos = [];
+  let resto = utiles;
+  while (resto.length) {
+    let n = resto.length;
+    while (n > 0 && !intentarAcomodo(resto.slice(0, n), carasBase(resto.slice(0, n)), cfg)) n--;
+    if (n === 0) {
+      const p = resto[0];
+      const aviso = "«" + p.descripcion + "» (" + redondo(caraAncho(p)) + " × " +
+                    redondo(caraAlto(p)) + " cm de cara) no se pudo acomodar y se omite.";
+      if (!avisos.includes(aviso)) avisos.push(aviso);
+      resto = resto.slice(1);
+      continue;
+    }
+    modulos.push(optimizar(resto.slice(0, n), cfg));
+    resto = resto.slice(n);
+  }
+  if (!modulos.length) throw new Error("No fue posible acomodar los productos.");
+  finalizar(modulos, cfg);
+
+  // si se pidió una cantidad fija de niveles y no entró, decirlo
+  const rotulo = (m, real, pedidas, nombre) =>
+    "Módulo " + m + ": se pidieron " + pedidas + " " + nombre + " y entraron " + real + ".";
+  for (const mod of modulos) {
+    if (cfg.nGancheras != null && mod.ganchos.length && mod.ganchos.length !== cfg.nGancheras)
+      avisos.push(rotulo(mod.indice, mod.ganchos.length, cfg.nGancheras, "gancheras"));
+    if (cfg.nTablillas != null && mod.estantes.length && mod.estantes.length !== cfg.nTablillas)
+      avisos.push(rotulo(mod.indice, mod.estantes.length, cfg.nTablillas, "tablillas"));
+  }
+  return { modulos, avisos };
+}
+
+/* ---------------- acomodo manual ---------------- */
+const copiarDisp = d => ({
+  filasG: d.filasG.map(f => f.map(it => ({ p:it.p, n:it.n }))),
+  filasT: d.filasT.map(f => f.map(it => ({ p:it.p, n:it.n })))
+});
+const disposicionDe = mod => copiarDisp({ filasG: mod.filasG, filasT: mod.filasT });
+
+function montarManual(disposiciones, cfg, quitados) {
+  const vivos = f => f.map(fila => fila.filter(it => !quitados || !quitados.has(it.p.idx)));
+  const mods = [];
+  for (const d of disposiciones) {
+    const m = montar(vivos(d.filasG), vivos(d.filasT), cfg);
+    if (!m) return null;
+    mods.push(m);
+  }
+  return finalizar(mods, cfg);
+}
+
+/* Dónde está un producto dentro de una disposición. */
+function ubicarEn(disp, idx) {
+  for (const zona of ["G", "T"]) {
+    const filas = zona === "G" ? disp.filasG : disp.filasT;
+    for (let f = 0; f < filas.length; f++) {
+      const pos = filas[f].findIndex(it => it.p.idx === idx);
+      if (pos >= 0) return { zona, fila: f, pos };
+    }
+  }
+  return null;
+}
+
+/* Filas en el orden en que se ven: ganchos arriba, tablillas abajo. */
+function filasVisuales(disp) {
+  return disp.filasG.map((_, i) => ({ zona:"G", fila:i }))
+    .concat(disp.filasT.map((_, i) => ({ zona:"T", fila:i })).reverse());
+}
+
+const carasPorProducto = mod => {
+  const c = {};
+  for (const nv of mod.niveles) for (const f of nv.caras) c[f.p.idx] = (c[f.p.idx] || 0) + 1;
+  return c;
+};
+function bloquesDelNivel(nivel) {
+  const orden = nivel.caras.slice().sort((a, b) => a.x - b.x);
+  const grupos = [];
+  for (const c of orden) {
+    const ult = grupos[grupos.length - 1];
+    if (ult && ult[0].p.idx === c.p.idx) ult.push(c); else grupos.push([c]);
+  }
+  return grupos;
+}
+
+/* ==================================================================== *
+ *  6. Superficie de dibujo — el mismo código pinta el PDF y el PNG     *
+ * ==================================================================== */
+const PILA = 'Helvetica, Arial, "Liberation Sans", sans-serif';
+const medidor = document.createElement("canvas").getContext("2d");
+function anchoTexto(t, tam, negrita) {
+  medidor.font = (negrita ? "bold " : "") + tam + "px " + PILA;
+  return medidor.measureText(t == null ? "" : String(t)).width;
+}
+function recortar(t, tam, negrita, max) {
+  t = t == null ? "" : String(t);
+  if (anchoTexto(t, tam, negrita) <= max) return t;
+  while (t && anchoTexto(t + "…", tam, negrita) > max) t = t.slice(0, -1);
+  return t ? t + "…" : "";
+}
+function achicar(t, maxTam, minTam, max, negrita) {
+  let s = maxTam;
+  while (s > minTam && anchoTexto(t, s, negrita) > max) s -= 0.5;
+  return s;
+}
+function partir(t, tam, negrita, max, lineas) {
+  const palabras = String(t || "").split(/\s+/).filter(Boolean);
+  const out = []; let cur = "";
+  for (const w of palabras) {
+    const p = (cur + " " + w).trim();
+    if (anchoTexto(p, tam, negrita) <= max || !cur) cur = p;
+    else { out.push(cur); cur = w; if (out.length === lineas) break; }
+  }
+  if (cur && out.length < lineas) out.push(cur);
+  if (out.length === lineas) {
+    const usadas = out.join(" ").split(/\s+/).length;
+    if (usadas < palabras.length)
+      out[lineas - 1] = recortar(out[lineas - 1] + " " + palabras.slice(usadas).join(" "), tam, negrita, max);
+  }
+  return out;
+}
+function encajar(iw, ih, x, y, w, h) {
+  const s = Math.min(w / iw, h / ih);
+  return [x + (w - iw * s) / 2, y + (h - ih * s) / 2, iw * s, ih * s];
+}
+function aRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+}
+
+/* --- superficie sobre canvas 2D (para el PNG) --- */
+function superficieCanvas(ctx, escala) {
+  const E = escala;
+  const fuente = (tam, negrita) => (negrita ? "bold " : "") + (tam * E) + "px " + PILA;
+  return {
+    rect(x, y, w, h, o = {}) {
+      if (o.relleno) { ctx.fillStyle = o.relleno; ctx.fillRect(x * E, y * E, w * E, h * E); }
+      if (o.borde) {
+        ctx.strokeStyle = o.borde; ctx.lineWidth = (o.grosor || 0.5) * E;
+        ctx.strokeRect(x * E, y * E, w * E, h * E);
+      }
+    },
+    rectRedondo(x, y, w, h, r, o = {}) {
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x * E, y * E, w * E, h * E, r * E);
+      else ctx.rect(x * E, y * E, w * E, h * E);
+      if (o.relleno) { ctx.fillStyle = o.relleno; ctx.fill(); }
+    },
+    linea(x1, y1, x2, y2, o = {}) {
+      ctx.strokeStyle = o.borde || "#000"; ctx.lineWidth = (o.grosor || 0.5) * E;
+      ctx.beginPath(); ctx.moveTo(x1 * E, y1 * E); ctx.lineTo(x2 * E, y2 * E); ctx.stroke();
+    },
+    texto(t, x, y, o = {}) {
+      ctx.font = fuente(o.tam || 10, o.negrita);
+      ctx.fillStyle = o.color || "#000";
+      ctx.textAlign = o.al === "c" ? "center" : o.al === "d" ? "right" : "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(String(t), x * E, y * E);
+      ctx.textAlign = "left";
+    },
+    textoGirado(t, x, y, o = {}) {
+      ctx.save();
+      ctx.translate(x * E, y * E);
+      ctx.rotate(-Math.PI / 2);
+      ctx.font = fuente(o.tam || 10, o.negrita);
+      ctx.fillStyle = o.color || "#000";
+      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(String(t), 0, 0);
+      ctx.restore();
+    },
+    imagen(foto, x, y, w, h) {
+      const [ix, iy, iw, ih] = encajar(foto.ancho, foto.alto, x, y, w, h);
+      ctx.drawImage(foto.bmp, ix * E, iy * E, iw * E, ih * E);
+    },
+    conRecorte(x, y, w, h, fn) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x * E, y * E, w * E, h * E); ctx.clip();
+      fn(); ctx.restore();
+    }
+  };
+}
+
+/* ==================================================================== *
+ *  7. Escritor de PDF                                                  *
+ * ==================================================================== */
+const CP1252 = { "€":128,"‚":130,"ƒ":131,"„":132,"…":133,"†":134,
+  "‡":135,"ˆ":136,"‰":137,"Š":138,"‹":139,"Œ":140,"Ž":142,
+  "‘":145,"’":146,"“":147,"”":148,"•":149,"–":150,"—":151,
+  "˜":152,"™":153,"š":154,"›":155,"œ":156,"ž":158,"Ÿ":159 };
+
+function textoPdf(s) {
+  let out = "";
+  for (const ch of String(s)) {
+    let c = ch.codePointAt(0);
+    if (c > 255) c = CP1252[ch] != null ? CP1252[ch] : 63;
+    if (c < 32) c = 32;                       // saltos y tabulaciones romperían el flujo
+    if (c === 40 || c === 41 || c === 92) out += "\\";
+    out += String.fromCharCode(c);
+  }
+  return out;
+}
+const num = v => (Math.abs(v) < 1e-6 ? "0" : (Math.round(v * 1000) / 1000).toString());
+
+function nuevoPdf(ancho, alto) {
+  const objetos = [];                    // 1-based
+  const paginas = [];
+  const imagenes = new Map();            // foto -> número de objeto
+  const reservar = () => { objetos.push(null); return objetos.length; };
+  const fijar = (n, bytes) => { objetos[n - 1] = bytes; };
+  const bytesDe = s => { const u = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255; return u; };
+
+  const objFuente = [reservar(), reservar()];
+  fijar(objFuente[0], bytesDe("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"));
+  fijar(objFuente[1], bytesDe("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"));
+
+  function registrarImagen(foto) {
+    if (imagenes.has(foto)) return imagenes.get(foto);
+    const n = reservar();
+    const cab = "<< /Type /XObject /Subtype /Image /Width " + foto.ancho + " /Height " + foto.alto +
+                " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " +
+                foto.jpeg.length + " >>\nstream\n";
+    const cola = "\nendstream";
+    const u = new Uint8Array(cab.length + foto.jpeg.length + cola.length);
+    u.set(bytesDe(cab), 0);
+    u.set(foto.jpeg, cab.length);
+    u.set(bytesDe(cola), cab.length + foto.jpeg.length);
+    fijar(n, u);
+    imagenes.set(foto, n);
+    return n;
+  }
+
+  function nuevaPagina() {
+    const ops = [];
+    const usadas = new Map();            // nombre -> objeto
+    const H = alto;
+    const sup = {
+      rect(x, y, w, h, o = {}) {
+        if (o.relleno) { const c = aRgb(o.relleno); ops.push(num(c[0]) + " " + num(c[1]) + " " + num(c[2]) + " rg"); }
+        if (o.borde) { const c = aRgb(o.borde); ops.push(num(c[0]) + " " + num(c[1]) + " " + num(c[2]) + " RG");
+                       ops.push(num(o.grosor || 0.5) + " w"); }
+        ops.push(num(x) + " " + num(H - y - h) + " " + num(w) + " " + num(h) + " re");
+        ops.push(o.relleno && o.borde ? "B" : o.relleno ? "f" : "S");
+      },
+      rectRedondo(x, y, w, h, r, o = {}) {
+        const yb = H - y - h, k = r * 0.5523;
+        const c = aRgb(o.relleno || "#000000");
+        ops.push(num(c[0]) + " " + num(c[1]) + " " + num(c[2]) + " rg");
+        ops.push(num(x + r) + " " + num(yb) + " m");
+        ops.push(num(x + w - r) + " " + num(yb) + " l");
+        ops.push(num(x + w - r + k) + " " + num(yb) + " " + num(x + w) + " " + num(yb + r - k) + " " + num(x + w) + " " + num(yb + r) + " c");
+        ops.push(num(x + w) + " " + num(yb + h - r) + " l");
+        ops.push(num(x + w) + " " + num(yb + h - r + k) + " " + num(x + w - r + k) + " " + num(yb + h) + " " + num(x + w - r) + " " + num(yb + h) + " c");
+        ops.push(num(x + r) + " " + num(yb + h) + " l");
+        ops.push(num(x + r - k) + " " + num(yb + h) + " " + num(x) + " " + num(yb + h - r + k) + " " + num(x) + " " + num(yb + h - r) + " c");
+        ops.push(num(x) + " " + num(yb + r) + " l");
+        ops.push(num(x) + " " + num(yb + r - k) + " " + num(x + r - k) + " " + num(yb) + " " + num(x + r) + " " + num(yb) + " c");
+        ops.push("f");
+      },
+      linea(x1, y1, x2, y2, o = {}) {
+        const c = aRgb(o.borde || "#000000");
+        ops.push(num(c[0]) + " " + num(c[1]) + " " + num(c[2]) + " RG");
+        ops.push(num(o.grosor || 0.5) + " w");
+        ops.push(num(x1) + " " + num(H - y1) + " m " + num(x2) + " " + num(H - y2) + " l S");
+      },
+      texto(t, x, y, o = {}) {
+        const tam = o.tam || 10, s = String(t);
+        const w = anchoTexto(s, tam, o.negrita);
+        const px = o.al === "c" ? x - w / 2 : o.al === "d" ? x - w : x;
+        const c = aRgb(o.color || "#000000");
+        ops.push("BT /F" + (o.negrita ? 2 : 1) + " " + num(tam) + " Tf");
+        ops.push(num(c[0]) + " " + num(c[1]) + " " + num(c[2]) + " rg");
+        ops.push(num(px) + " " + num(H - y) + " Td (" + textoPdf(s) + ") Tj ET");
+      },
+      textoGirado(t, x, y, o = {}) {
+        const tam = o.tam || 10, s = String(t);
+        const w = anchoTexto(s, tam, o.negrita);
+        const c = aRgb(o.color || "#000000");
+        ops.push("q 0 1 -1 0 " + num(x) + " " + num(H - y) + " cm");
+        ops.push("BT /F" + (o.negrita ? 2 : 1) + " " + num(tam) + " Tf");
+        ops.push(num(c[0]) + " " + num(c[1]) + " " + num(c[2]) + " rg");
+        ops.push(num(-w / 2) + " 0 Td (" + textoPdf(s) + ") Tj ET Q");
+      },
+      imagen(foto, x, y, w, h) {
+        const n = registrarImagen(foto);
+        const nombre = "Im" + n;
+        usadas.set(nombre, n);
+        const [ix, iy, iw, ih] = encajar(foto.ancho, foto.alto, x, y, w, h);
+        ops.push("q " + num(iw) + " 0 0 " + num(ih) + " " + num(ix) + " " + num(H - iy - ih) + " cm");
+        ops.push("/" + nombre + " Do Q");
+      },
+      conRecorte(x, y, w, h, fn) {
+        ops.push("q " + num(x) + " " + num(H - y - h) + " " + num(w) + " " + num(h) + " re W n");
+        fn();
+        ops.push("Q");
+      }
+    };
+    paginas.push({ ops, usadas });
+    return sup;
+  }
+
+  function cerrar() {
+    const objPaginas = reservar();
+    const refPag = [];
+    for (const pg of paginas) {
+      const flujo = pg.ops.join("\n");
+      const nc = reservar();
+      fijar(nc, bytesDe("<< /Length " + flujo.length + " >>\nstream\n" + flujo + "\nendstream"));
+      const np = reservar();
+      const xo = [...pg.usadas.entries()].map(([n, o]) => "/" + n + " " + o + " 0 R").join(" ");
+      fijar(np, bytesDe(
+        "<< /Type /Page /Parent " + objPaginas + " 0 R /MediaBox [0 0 " + num(ancho) + " " + num(alto) + "]" +
+        " /Resources << /Font << /F1 " + objFuente[0] + " 0 R /F2 " + objFuente[1] + " 0 R >>" +
+        (xo ? " /XObject << " + xo + " >>" : "") + " >> /Contents " + nc + " 0 R >>"));
+      refPag.push(np);
+    }
+    fijar(objPaginas, bytesDe("<< /Type /Pages /Count " + refPag.length +
+      " /Kids [" + refPag.map(n => n + " 0 R").join(" ") + "] >>"));
+    const objCat = reservar();
+    fijar(objCat, bytesDe("<< /Type /Catalog /Pages " + objPaginas + " 0 R >>"));
+
+    const trozos = []; let largo = 0;
+    const meter = u => { trozos.push(u); largo += u.length; };
+    meter(bytesDe("%PDF-1.4\n%âãÏÓ\n"));
+    const desplaz = new Array(objetos.length + 1).fill(0);
+    for (let i = 1; i <= objetos.length; i++) {
+      desplaz[i] = largo;
+      meter(bytesDe(i + " 0 obj\n"));
+      meter(objetos[i - 1] || bytesDe("<< >>"));
+      meter(bytesDe("\nendobj\n"));
+    }
+    const inicioXref = largo;
+    let xref = "xref\n0 " + (objetos.length + 1) + "\n0000000000 65535 f \n";
+    for (let i = 1; i <= objetos.length; i++)
+      xref += String(desplaz[i]).padStart(10, "0") + " 00000 n \n";
+    xref += "trailer\n<< /Size " + (objetos.length + 1) + " /Root " + objCat + " 0 R >>\n" +
+            "startxref\n" + inicioXref + "\n%%EOF\n";
+    meter(bytesDe(xref));
+
+    const salida = new Uint8Array(largo); let p = 0;
+    for (const t of trozos) { salida.set(t, p); p += t.length; }
+    return salida;
+  }
+
+  return { nuevaPagina, cerrar };
+}
+
+/* ==================================================================== *
+ *  8. Las páginas: el plano y el detalle                               *
+ * ==================================================================== */
+const A4 = { w: 595.28, h: 841.89 }, MM = 2.834646, MARGEN = 14 * MM;
+const CANAL = 9 * MM;                     // regleta de niveles a la izquierda del mueble
+const TINTA = {
+  marino:"#173A5E", marino2:"#2C5C8F", ink:"#1F2933", gris:"#6B7683",
+  tabla:"#A8B2BD", tabla2:"#7C8794", linea:"#C9D1DA", borde:"#AEB8C4",
+  peg:"#F7F9FB", estante:"#F1F4F7", cebra:"#F2F5F8", acento:"#C8102E", blanco:"#FFFFFF"
+};
+
+function encabezado(s, titulo, sub, derecha) {
+  const tam = achicar(titulo, 22, 12, A4.w - 2 * MARGEN - 150, true);
+  s.texto(titulo, MARGEN, MARGEN + tam, { tam, negrita:true, color:TINTA.marino });
+  s.texto(sub, MARGEN, MARGEN + tam + 13, { tam:8.5, color:TINTA.gris });
+  if (derecha) s.texto(derecha, A4.w - MARGEN, MARGEN + tam + 13, { tam:8.5, color:TINTA.gris, al:"d" });
+  const yr = MARGEN + tam + 21;
+  s.linea(MARGEN, yr, MARGEN + 34, yr, { borde:TINTA.acento, grosor:1.6 });
+  s.linea(MARGEN + 38, yr, A4.w - MARGEN, yr, { borde:TINTA.linea, grosor:0.6 });
+  return yr;
+}
+function pie(s, texto, pag, total) {
+  s.texto(texto, MARGEN, A4.h - MARGEN + 6, { tam:7, color:TINTA.gris });
+  s.texto("Página " + pag + " de " + total, A4.w - MARGEN, A4.h - MARGEN + 6,
+          { tam:7, color:TINTA.gris, al:"d" });
+}
+
+function dibujarMueble(s, mod, cfg, titulo, caja) {
+  let [ax, ay, aw, ah] = caja;
+  ax += CANAL; aw -= CANAL;
+  const esc = Math.min(aw / cfg.anchoMueble, ah / cfg.altoMueble);
+  const mw = cfg.anchoMueble * esc, mh = cfg.altoMueble * esc;
+  const x0 = ax + (aw - mw) / 2, y1 = ay + (ah - mh) / 2 + mh;   // y1 = piso del mueble
+  const X = cm => x0 + cm * esc;
+  const Y = cm => y1 - cm * esc;                                  // cm desde el piso -> y de página
+  const bajoCenefa = cfg.altoMueble - cfg.cenefa;
+
+  if (mod.ganchos.length) {
+    s.rect(X(0), Y(bajoCenefa), mw, (bajoCenefa - mod.piso) * esc, { relleno:TINTA.peg });
+    s.conRecorte(X(0), Y(bajoCenefa), mw, (bajoCenefa - mod.piso) * esc, () => {
+      for (let yy = mod.piso + 2; yy < bajoCenefa; yy += 4)
+        for (let xx = cfg.margenLados; xx < cfg.anchoMueble - cfg.margenLados; xx += 4)
+          s.rect(X(xx) - 0.5, Y(yy) - 0.5, 1, 1, { relleno:"#DFE6ED" });
+    });
+  }
+  if (mod.topeEstantes > cfg.zocalo)
+    s.rect(X(0), Y(mod.topeEstantes), mw, mod.topeEstantes * esc, { relleno:TINTA.estante });
+
+  s.rect(X(0), Y(cfg.zocalo), mw, cfg.zocalo * esc, { relleno:TINTA.tabla });
+  s.rect(X(0), Y(cfg.zocalo), mw, 0.8 * esc, { relleno:TINTA.tabla2 });
+  for (const nv of mod.estantes)
+    if (nv.conTabla) s.rect(X(0), Y(nv.tabla + cfg.espesor), mw, cfg.espesor * esc, { relleno:TINTA.tabla });
+  for (const nv of mod.ganchos)
+    s.linea(X(cfg.margenLados * 0.4), Y(nv.barra), X(cfg.anchoMueble - cfg.margenLados * 0.4), Y(nv.barra),
+            { borde:TINTA.tabla2, grosor:1.1 });
+
+  for (const nv of mod.niveles) {
+    for (const bloque of bloquesDelNivel(nv)) {
+      for (const c of bloque) {
+        const px = X(c.x), py = Y(c.y + c.h), pw = c.w * esc, ph = c.h * esc;
+        s.rect(px, py, pw, ph, { relleno:TINTA.blanco, borde:TINTA.borde, grosor:0.35 });
+        const m = Math.min(pw, ph) * 0.07;
+        if (c.p.foto && pw - 2 * m > 1 && ph - 2 * m > 1)
+          s.imagen(c.p.foto, px + m, py + m, pw - 2 * m, ph - 2 * m);
+        else if (pw > 2 && ph > 2)
+          s.conRecorte(px, py, pw, ph, () => {
+            for (let d = -ph; d < pw; d += 4)
+              s.linea(px + d, py + ph, px + d + ph, py, { borde:TINTA.linea, grosor:0.3 });
+          });
+      }
+      const cx = (X(bloque[0].x) + X(bloque[bloque.length - 1].x + bloque[bloque.length - 1].w)) / 2;
+      chapa(s, cx, Y(Math.max(...bloque.map(c => c.y + c.h))), String(bloque[0].p.numero));
+    }
+  }
+
+  s.rect(X(0), Y(cfg.altoMueble), mw, cfg.cenefa * esc, { relleno:TINTA.marino });
+  const tamC = achicar(titulo, Math.min(16, cfg.cenefa * esc * 0.42), 6, mw - 20, true);
+  s.texto(titulo, x0 + mw / 2, Y(bajoCenefa) - (cfg.cenefa * esc - tamC) / 2 - tamC * 0.15,
+          { tam:tamC, negrita:true, color:TINTA.blanco, al:"c" });
+  s.rect(X(0), Y(cfg.altoMueble), mw, mh, { borde:TINTA.marino, grosor:1.3 });
+
+  for (const nv of mod.niveles) {
+    const cmAltura = nv.tipo === "gancho" ? nv.barra : nv.base;
+    const yy = Y(cmAltura);
+    s.linea(x0 - 5, yy, x0, yy, { borde:TINTA.linea, grosor:0.5 });
+    s.texto((nv.tipo === "gancho" ? "G" : "T") + nv.indice, x0 - 7.5, yy + 2,
+            { tam:6.5, negrita:true, color:TINTA.marino2, al:"d" });
+  }
+
+  if (mod.ganchos.length)
+    s.textoGirado("ZONA COLGADO", x0 + mw + 9, (Y(mod.piso) + Y(bajoCenefa)) / 2, { tam:6, color:TINTA.marino2 });
+  if (mod.estantes.length)
+    s.textoGirado("ZONA TABLILLA", x0 + mw + 9, (y1 + Y(mod.topeEstantes)) / 2, { tam:6, color:TINTA.marino2 });
+}
+
+function chapa(s, cx, yTope, texto) {
+  const tam = 6.2, w = Math.max(9.5, anchoTexto(texto, tam, true) + 6), h = 8.6;
+  s.rectRedondo(cx - w / 2, yTope - h * 0.38, w, h, 2.2, { relleno:TINTA.marino });
+  s.texto(texto, cx, yTope - h * 0.38 + h * 0.72, { tam, negrita:true, color:TINTA.blanco, al:"c" });
+}
+
+const COLS = [
+  { k:"n",     t:"N°",          w: 9 * MM, al:"c" },
+  { k:"foto",  t:"Imagen",      w:15 * MM, al:"c" },
+  { k:"barra", t:"C. Barra",    w:27 * MM, al:"i" },
+  { k:"mat",   t:"Material",    w:19 * MM, al:"i" },
+  { k:"desc",  t:"Descripción", w:76 * MM, al:"i" },
+  { k:"donde", t:"Ubicación",   w:23 * MM, al:"i" },
+  { k:"caras", t:"Caras",       w:10 * MM, al:"c" }
+];
+const ANCHO_TABLA = COLS.reduce((a, c) => a + c.w, 0);
+const ALTO_FILA = 15 * MM;
+
+function filasDetalle(modulos) {
+  const filas = [];
+  for (const mod of modulos) {
+    const conteo = carasPorProducto(mod);
+    for (const p of mod.productos) {
+      filas.push({
+        n:p.numero, foto:p.foto, barra:p.barra || "—", mat:p.material || "—",
+        desc:p.descripcion, caras:conteo[p.idx] || 1,
+        donde:(modulos.length > 1 ? "M" + mod.indice + "-" : "") + p.ubicacion, nivel:p.nivel
+      });
+    }
+  }
+  return filas;
+}
+
+function filaDetalle(s, f, x, y, i) {
+  if (i % 2) s.rect(x, y, ANCHO_TABLA, ALTO_FILA, { relleno:TINTA.cebra });
+  s.linea(x, y + ALTO_FILA, x + ANCHO_TABLA, y + ALTO_FILA, { borde:TINTA.linea, grosor:0.3 });
+  const medio = y + ALTO_FILA / 2;
+  let cx = x;
+
+  for (const col of COLS) {
+    const w = col.w;
+    if (col.k === "n") {
+      chapa(s, cx + w / 2, medio - 4.3, String(f.n));
+    } else if (col.k === "foto") {
+      if (f.foto) { const m = 1.5 * MM;
+        s.imagen(f.foto, cx + m, y + m, w - 2 * m, ALTO_FILA - 2 * m); }
+    } else if (col.k === "desc") {
+      const lineas = partir(f.desc, 7.5, true, w - 4 * MM, 2);
+      let ty = medio + 2 - (lineas.length > 1 ? 3 : 0);
+      for (const ln of lineas) {
+        s.texto(ln, cx + 2 * MM, ty, { tam:7.5, negrita:true, color:TINTA.ink });
+        ty += 8;
+      }
+    } else if (col.k === "donde") {
+      s.texto(f.donde, cx + 2 * MM, medio - 1, { tam:8, negrita:true, color:TINTA.marino });
+      s.texto(recortar(f.nivel, 6, false, w - 3 * MM), cx + 2 * MM, medio + 7,
+              { tam:6, color:TINTA.gris });
+    } else if (col.k === "caras") {
+      s.texto(String(f.caras), cx + w / 2, medio + 2.5,
+              { tam:8, negrita:true, color:TINTA.ink, al:"c" });
+    } else {
+      s.texto(recortar(f[col.k], 7.5, false, w - 3 * MM), cx + 2 * MM, medio + 2,
+              { tam:7.5, color:TINTA.ink });
+    }
+    cx += w;
+  }
+}
+
+function construirPdf(modulos, cfg, titulo, origen) {
+  const doc = nuevoPdf(A4.w, A4.h);
+  const hoy = hoyTexto();
+  const filas = filasDetalle(modulos);
+  const yTabla = MARGEN + 22 + 21 + 12;
+  const porPagina = Math.max(1, Math.floor((A4.h - MARGEN - 22 - yTabla - 7 * MM) / ALTO_FILA));
+  const pagsDetalle = Math.ceil(filas.length / porPagina);
+  const total = modulos.length + pagsDetalle;
+  const textoPie = (origen ? origen + "  ·  " : "") + hoy;
+
+  modulos.forEach(mod => {
+    const s = doc.nuevaPagina();
+    const sub = "Módulo " + mod.indice + " de " + modulos.length + "   |   " +
+      mod.productos.length + " productos   |   " + mod.caras + " caras";
+    const yr = encabezado(s, titulo, sub, "Fecha: " + hoy);
+    dibujarMueble(s, mod, cfg, titulo, [MARGEN, yr + 14, A4.w - 2 * MARGEN, A4.h - MARGEN - 20 - yr - 14]);
+    pie(s, textoPie, mod.indice, total);
+  });
+
+  for (let i = 0; i < pagsDetalle; i++) {
+    const s = doc.nuevaPagina();
+    const sub = "Detalle de productos   |   " + (i + 1) + " de " + pagsDetalle +
+                "   |   la ubicación corresponde al número del plano";
+    const yr = encabezado(s, titulo, sub, "Fecha: " + hoy);
+    const x = MARGEN + (A4.w - 2 * MARGEN - ANCHO_TABLA) / 2;
+    let y = yr + 12;
+    s.rect(x, y, ANCHO_TABLA, 7 * MM, { relleno:TINTA.marino });
+    let cx = x;
+    for (const col of COLS) {
+      const tam = achicar(col.t, 7, 5, col.w - 4, true);
+      if (col.al === "c") s.texto(col.t, cx + col.w / 2, y + 4.9 * MM, { tam, negrita:true, color:TINTA.blanco, al:"c" });
+      else s.texto(col.t, cx + 2 * MM, y + 4.9 * MM, { tam, negrita:true, color:TINTA.blanco });
+      cx += col.w;
+    }
+    y += 7 * MM;
+    const lote = filas.slice(i * porPagina, (i + 1) * porPagina);
+    lote.forEach((f, j) => { filaDetalle(s, f, x, y, j); y += ALTO_FILA; });
+    s.rect(x, yr + 12, ANCHO_TABLA, y - yr - 12, { borde:TINTA.linea, grosor:0.3 });
+    pie(s, textoPie, modulos.length + i + 1, total);
+  }
+  return doc.cerrar();
+}
+
+async function planoEnPng(mod, cfg, titulo) {
+  const E = 3;
+  const lienzo = document.createElement("canvas");
+  lienzo.width = Math.round(A4.w * E); lienzo.height = Math.round(A4.h * E);
+  const ctx = lienzo.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+  const s = superficieCanvas(ctx, E);
+  const sub = mod.productos.length + " productos   |   " + mod.caras + " caras";
+  const yr = encabezado(s, titulo, sub, "Fecha: " + hoyTexto());
+  dibujarMueble(s, mod, cfg, titulo, [MARGEN, yr + 14, A4.w - 2 * MARGEN, A4.h - MARGEN - 20 - yr - 14]);
+  return new Promise(r => lienzo.toBlob(r, "image/png"));
+}
+
+/* ==================================================================== *
+ *  9. Vista previa en pantalla                                         *
+ * ==================================================================== */
+function dibujarPestanas() {
+  el.pestanas.innerHTML = "";
+  if (!estado.modulos || estado.modulos.length < 2) return;
+  estado.modulos.forEach((m, i) => {
+    const b = nodo("button", "pestana", "Módulo " + m.indice);
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(i === estado.modulo));
+    b.onclick = () => { estado.modulo = i; dibujarPestanas(); dibujarPlano(); };
+    el.pestanas.appendChild(b);
+  });
+}
+
+function dibujarCifras() {
+  const m = estado.modulos[estado.modulo];
+  const totalProd = estado.modulos.reduce((s, x) => s + x.productos.length, 0);
+  el.cifras.innerHTML = "";
+  [["Módulos", estado.modulos.length], ["Productos", totalProd],
+   ["Caras en módulo " + m.indice, m.caras], ["Ocupación", m.ocupacion + "%"]]
+  .forEach(([rot, val]) => {
+    const d = nodo("div");
+    d.appendChild(nodo("b", null, String(val)));
+    d.appendChild(nodo("span", null, rot));
+    el.cifras.appendChild(d);
+  });
+  el.cifras.hidden = false;
+}
+
+function dibujarAvisos(avisos) {
+  el.avisos.innerHTML = "";
+  if (!avisos.length) { el.avisos.hidden = true; return; }
+  el.avisos.appendChild(nodo("b", null, "Avisos (" + avisos.length + ")"));
+  const ul = nodo("ul");
+  avisos.slice(0, 12).forEach(a => ul.appendChild(nodo("li", null, a)));
+  if (avisos.length > 12) ul.appendChild(nodo("li", null, "…"));
+  el.avisos.appendChild(ul);
+  el.avisos.hidden = false;
+}
+
+function dibujarPlano() {
+  const cfg = estado.cfg, mod = estado.modulos[estado.modulo];
+  const W = cfg.anchoMueble, H = cfg.altoMueble;
+  el.mesa.innerHTML = "";
+  const caja = nodo("div");
+  const plano = nodo("div", "plano");
+  const regla = nodo("div", "regla");
+
+  const mueble = nodo("div", "mueble");
+  mueble.style.aspectRatio = W + " / " + H;
+  const bajoCenefa = H - cfg.cenefa;
+
+  if (mod.ganchos.length) {
+    const z = nodo("div", "franja gancho");
+    z.style.bottom = pct(mod.piso, H);
+    z.style.height = pct(bajoCenefa - mod.piso, H);
+    mueble.appendChild(z);
+  }
+  if (mod.topeEstantes > cfg.zocalo) {
+    const z = nodo("div", "franja estante");
+    z.style.bottom = "0";
+    z.style.height = pct(mod.topeEstantes, H);
+    mueble.appendChild(z);
+  }
+  const zoc = nodo("div", "zocalo");
+  zoc.style.height = pct(cfg.zocalo, H);
+  mueble.appendChild(zoc);
+
+  for (const nv of mod.niveles) {
+    if (nv.tipo === "tablilla" && nv.conTabla) {
+      const t = nodo("div", "tabla");
+      t.style.bottom = pct(nv.tabla, H);
+      t.style.height = pct(cfg.espesor, H);
+      mueble.appendChild(t);
+    }
+    if (nv.tipo === "gancho") {
+      const v = nodo("div", "varilla");
+      v.style.bottom = pct(nv.barra, H);
+      mueble.appendChild(v);
+    }
+    const cmAltura = nv.tipo === "gancho" ? nv.barra : nv.base;
+    const tick = nodo("div", "tick");
+    tick.style.bottom = pct(cmAltura, H);
+    tick.appendChild(nodo("b", null, (nv.tipo === "gancho" ? "G" : "T") + nv.indice));
+    tick.title = nv.tipo === "gancho" ? "Gancho fila " + nv.indice + ", a " + redondo(cmAltura) + " cm del piso"
+                                      : "Tablilla " + nv.indice + ", a " + redondo(cmAltura) + " cm del piso";
+    regla.appendChild(tick);
+  }
+
+  for (const nv of mod.niveles) {
+    bloquesDelNivel(nv).forEach((bloque, pos) => {
+      const p = bloque[0].p;
+      const pieza = nodo("div", "pieza");
+      pieza.dataset.idx = p.idx;
+      pieza.dataset.zona = nv.tipo === "gancho" ? "G" : "T";
+      pieza.dataset.fila = nv.orden;
+      pieza.dataset.pos = pos;
+      pieza.title = "#" + p.numero + "  " + p.descripcion + "\n" + medidasDe(p) + " cm · " +
+                    bloque.length + (bloque.length === 1 ? " cara" : " caras") +
+                    "\nArrastralo para cambiarlo de lugar";
+      for (const c of bloque) {
+        const cara = nodo("div", "cara" + (p.foto ? "" : " vacia"));
+        cara.style.left = pct(c.x, W);
+        cara.style.bottom = pct(c.y, H);
+        cara.style.width = pct(c.w, W);
+        cara.style.height = pct(c.h, H);
+        if (p.foto) {
+          const img = new Image();
+          img.src = p.foto.url; img.alt = p.descripcion; img.loading = "lazy";
+          cara.appendChild(img);
+        }
+        pieza.appendChild(cara);
+      }
+      const ch = nodo("div", "chapa", String(p.numero));
+      const ini = bloque[0], fin = bloque[bloque.length - 1];
+      ch.style.left = pct((ini.x + fin.x + fin.w) / 2, W);
+      ch.style.bottom = pct(Math.max(...bloque.map(c => c.y + c.h)), H);
+      pieza.appendChild(ch);
+      pieza.addEventListener("pointerdown", e => tomarPieza(e, pieza, p));
+      mueble.appendChild(pieza);
+    });
+  }
+
+  // bandas donde se puede soltar: sólo aparecen mientras se arrastra
+  const bandas = nodo("div", "bandas");
+  for (const b of bandasDe(mod, cfg)) {
+    const d = nodo("div", "banda " + (b.tipo === "nueva" ? "nueva" : "fila"));
+    d.style.bottom = pct(b.y0, H);
+    d.style.height = pct(b.y1 - b.y0, H);
+    d.dataset.tipo = b.tipo;
+    d.dataset.zona = b.zona;
+    d.dataset.fila = b.fila;
+    bandas.appendChild(d);
+  }
+  mueble.appendChild(bandas);
+
+  const cenefa = nodo("div", "cenefa");
+  cenefa.style.height = pct(cfg.cenefa, H);
+  cenefa.appendChild(nodo("span", null, estado.categoria));
+  mueble.appendChild(cenefa);
+
+  plano.appendChild(regla);
+  plano.appendChild(mueble);
+  caja.appendChild(plano);
+  el.mesa.appendChild(caja);
+  requestAnimationFrame(aplicarZoom);
+}
+
+/* ---------- dónde se puede soltar (en cm, desde el piso) ---------- */
+const HUECO_MIN = 5;                     // cm libres para ofrecer una fila nueva
+
+function bandasDe(mod, cfg) {
+  const techo = cfg.altoMueble - cfg.cenefa;
+  const lista = [];
+  const hayG = mod.ganchos.length, hayT = mod.estantes.length;
+
+  // franja para estrenar tablilla cuando todavía no hay ninguna
+  const pisoT = hayT ? mod.topeEstantes : Math.min(cfg.zocalo + 16, techo);
+  if (!hayT && techo - cfg.zocalo >= HUECO_MIN)
+    lista.push({ tipo:"nueva", zona:"T", fila:0, y0:cfg.zocalo, y1:pisoT });
+
+  let arriba = techo;
+  mod.ganchos.forEach((nv, i) => {
+    const y1 = nv.barra, y0 = nv.barra - nv.alto;
+    if (arriba - y1 >= HUECO_MIN) lista.push({ tipo:"nueva", zona:"G", fila:i, y0:y1, y1:arriba });
+    lista.push({ tipo:"fila", zona:"G", fila:i, y0, y1 });
+    arriba = y0;
+  });
+  const pisoG = hayT ? mod.piso : pisoT;      // sin tablillas, dejale lugar a la primera
+  if (arriba - pisoG >= HUECO_MIN)
+    lista.push({ tipo:"nueva", zona:"G", fila:mod.ganchos.length, y0:pisoG, y1:arriba });
+
+  mod.estantes.forEach((nv, i) => {
+    lista.push({ tipo:"fila", zona:"T", fila:i, y0:nv.base, y1:nv.base + nv.alto });
+    const y0 = nv.base + nv.alto;
+    const sig = mod.estantes[i + 1];
+    const y1 = sig ? sig.tabla : mod.topeEstantes;
+    if (y1 - y0 >= HUECO_MIN) lista.push({ tipo:"nueva", zona:"T", fila:i + 1, y0, y1 });
+  });
+  return lista;
+}
+
+/* ---------- arrastrar una pieza ---------- */
+let arrastre = null;
+
+function tomarPieza(e, pieza, p) {
+  if (e.button !== 0 || arrastre) return;
+  e.preventDefault();
+  arrastre = {
+    pieza, producto:p, x0:e.clientX, y0:e.clientY, activo:false, destino:null, bandas:null,
+    desde: { zona:pieza.dataset.zona, fila:+pieza.dataset.fila, pos:+pieza.dataset.pos }
+  };
+  document.addEventListener("pointermove", moviendoPieza);
+  document.addEventListener("pointerup", soltandoPieza, { once:true });
+  document.addEventListener("pointercancel", soltandoPieza, { once:true });
+}
+
+function despegar() {
+  const a = arrastre, mueble = el.mesa.querySelector(".mueble");
+  a.activo = true;
+  a.mueble = mueble;
+  mueble.classList.add("moviendo");
+  a.pieza.classList.add("alzada");
+
+  a.fantasma = nodo("div", "fantasma");
+  if (a.producto.foto) {
+    const img = new Image();
+    img.src = a.producto.foto.url;
+    img.alt = "";
+    a.fantasma.appendChild(img);
+  }
+  a.fantasma.appendChild(nodo("span", null, a.producto.descripcion));
+  document.body.appendChild(a.fantasma);
+
+  a.marcador = nodo("div", "marcador");
+  mueble.appendChild(a.marcador);
+
+  a.bandas = [...mueble.querySelectorAll(".banda")].map(d => ({
+    el: d, r: d.getBoundingClientRect(),
+    tipo: d.dataset.tipo, zona: d.dataset.zona, fila: +d.dataset.fila
+  }));
+  a.piezas = [...mueble.querySelectorAll(".pieza")].map(d => {
+    const caras = [...d.querySelectorAll(".cara")].map(c => c.getBoundingClientRect());
+    return {
+      zona: d.dataset.zona, fila: +d.dataset.fila, pos: +d.dataset.pos,
+      izq: Math.min(...caras.map(r => r.left)), der: Math.max(...caras.map(r => r.right))
+    };
+  });
+  a.rectMueble = mueble.getBoundingClientRect();
+}
+
+function moviendoPieza(e) {
+  const a = arrastre;
+  if (!a) return;
+  if (!a.activo) {
+    if (Math.abs(e.clientX - a.x0) + Math.abs(e.clientY - a.y0) < 5) return;
+    despegar();
+  }
+  a.fantasma.style.left = e.clientX + "px";
+  a.fantasma.style.top = (e.clientY - 26) + "px";
+
+  // banda más cercana verticalmente
+  let mejor = null, dist = Infinity;
+  for (const b of a.bandas) {
+    const d = e.clientY < b.r.top ? b.r.top - e.clientY
+            : e.clientY > b.r.bottom ? e.clientY - b.r.bottom : 0;
+    if (d < dist) { dist = d; mejor = b; }
+  }
+  a.bandas.forEach(b => b.el.classList.toggle("activa", b === mejor));
+  if (!mejor) { a.destino = null; a.marcador.style.display = "none"; return; }
+
+  if (mejor.tipo === "nueva") {
+    a.destino = { zona:mejor.zona, fila:mejor.fila, pos:0, nueva:true };
+    Object.assign(a.marcador.style, {
+      display:"block", left:"6%", width:"88%", height:"3px",
+      top:(mejor.r.top + mejor.r.height / 2 - a.rectMueble.top - 1.5) + "px"
+    });
+    return;
+  }
+
+  const enFila = a.piezas
+    .filter(q => q.zona === mejor.zona && q.fila === mejor.fila &&
+                 !(q.zona === a.desde.zona && q.fila === a.desde.fila && q.pos === a.desde.pos))
+    .sort((q, r) => q.izq - r.izq);
+  let pos = 0;
+  for (const q of enFila) { if (e.clientX > (q.izq + q.der) / 2) pos++; else break; }
+  a.destino = { zona:mejor.zona, fila:mejor.fila, pos, nueva:false };
+
+  const x = enFila.length === 0 ? a.rectMueble.left + a.rectMueble.width / 2
+          : pos === 0 ? enFila[0].izq - 4
+          : pos >= enFila.length ? enFila[enFila.length - 1].der + 4
+          : (enFila[pos - 1].der + enFila[pos].izq) / 2;
+  Object.assign(a.marcador.style, {
+    display:"block", left:(x - a.rectMueble.left - 1.5) + "px", width:"3px",
+    top:(mejor.r.top - a.rectMueble.top) + "px", height:mejor.r.height + "px"
+  });
+}
+
+function soltandoPieza() {
+  const a = arrastre;
+  arrastre = null;
+  document.removeEventListener("pointermove", moviendoPieza);
+  if (!a) return;
+  if (!a.activo) { marcar(a.producto.idx, true); return; }
+
+  a.mueble.classList.remove("moviendo");
+  a.pieza.classList.remove("alzada");
+  a.fantasma.remove();
+  a.marcador.remove();
+  a.bandas.forEach(b => b.el.classList.remove("activa"));
+  if (a.destino) reubicar(a.desde, a.destino, a.producto.idx);
+}
+
+/* ---------- mover, con o sin arrastre ---------- */
+function entrarManual() {
+  if (estado.manual) return;
+  estado.manual = estado.modulos.map(disposicionDe);
+  pintarModo();
+}
+function volverAutomatico() {
+  estado.manual = null;
+  // deshace también los cambios de zona hechos arrastrando
+  estado.productos.forEach(p => { p.exhibicion = p.exhibicionExcel; });
+  pintarModo();
+  generar();
+  avisar("Se volvió al acomodo automático.");
+}
+function pintarModo() {
+  const manual = !!estado.manual;
+  el.chipManual.hidden = !manual;
+  el.btnAuto.hidden = !manual;
+  el.auto.disabled = manual;
+  el.caras.disabled = manual || !el.auto.checked;
+  el.campoCaras.style.opacity = (manual || !el.auto.checked) ? ".45" : "1";
+  // acomodando a mano, las filas son las que armaste vos
+  el.nGanchos.disabled = el.nTablillas.disabled = manual;
+  el.nGanchos.parentElement.parentElement.style.opacity = manual ? ".45" : "1";
+}
+
+/* Aplica un movimiento sobre el módulo visible. Devuelve true si se pudo. */
+function reubicar(desde, destino, idx) {
+  entrarManual();
+  const m = estado.modulo;
+  const copia = copiarDisp(estado.manual[m]);
+  const origen = desde.zona === "G" ? copia.filasG : copia.filasT;
+  const item = origen[desde.fila] && origen[desde.fila][desde.pos];
+  if (!item || item.p.idx !== idx) return false;
+  origen[desde.fila].splice(desde.pos, 1);
+
+  const dest = destino.zona === "G" ? copia.filasG : copia.filasT;
+  let pos = destino.pos;
+  if (destino.nueva) { dest.splice(destino.fila, 0, []); pos = 0; }
+  else if (destino.zona === desde.zona && destino.fila === desde.fila && pos > desde.pos) pos--;
+  const fila = dest[destino.fila] || (dest[destino.fila] = []);
+  fila.splice(pos, 0, item);
+
+  // la zona define cómo se exhibe: colgado del gancho o parado en la tablilla
+  const antes = item.p.exhibicion;
+  const ahora = destino.zona === "G" ? COLGADO : TABLILLA;
+  item.p.exhibicion = ahora;
+
+  const prueba = estado.manual.slice();
+  prueba[m] = copia;
+  const mods = montarManual(prueba, estado.cfg, estado.quitados);
+  if (!mods) {
+    item.p.exhibicion = antes;
+    montarManual(estado.manual, estado.cfg, estado.quitados);      // deja la numeración como estaba
+    avisar("Ahí no entra: la fila se pasaría de " + redondo(anchoUtil(estado.cfg)) +
+           " cm útiles, o el mueble se quedaría sin alto.", true);
+    return false;
+  }
+  estado.manual = prueba;
+  estado.modulos = mods;
+  if (antes !== ahora)
+    avisar(ahora === TABLILLA
+      ? "«" + item.p.descripcion + "» pasa a tablilla: ahora se dibuja parado (" +
+        redondo(item.p.ancho) + " × " + redondo(item.p.alto) + " cm)."
+      : "«" + item.p.descripcion + "» pasa a gancho: ahora se dibuja colgado (" +
+        redondo(item.p.ancho) + " × " + redondo(item.p.largo) + " cm).");
+  redibujar();
+  return true;
+}
+
+/* ---------- sacar y devolver productos ---------- */
+const activos = () => estado.productos.filter(p => !estado.quitados.has(p.idx));
+
+function pintarFuera() {
+  const n = estado.quitados.size;
+  el.chipFuera.textContent = n + (n === 1 ? " producto fuera" : " productos fuera");
+  el.chipFuera.hidden = !n;
+  el.btnDevolver.hidden = !n;
+}
+
+function quitarProducto(idx) {
+  if (idx == null || !estado.modulos) return;
+  const p = estado.productos.find(q => q.idx === idx);
+  if (!p || estado.quitados.has(idx)) return;
+  if (activos().length <= 1) { avisar("Tiene que quedar al menos un producto en el plano.", true); return; }
+
+  estado.quitados.add(idx);
+  estado.viva = null;
+  if (estado.manual) {
+    const mods = montarManual(estado.manual, estado.cfg, estado.quitados);
+    if (!mods) {
+      estado.quitados.delete(idx);
+      montarManual(estado.manual, estado.cfg, estado.quitados);
+      avisar("No se pudo quitar ese producto.", true);
+      return;
+    }
+    estado.modulos = mods;
+    estado.modulo = Math.min(estado.modulo, mods.length - 1);
+    redibujar();
+  } else {
+    const antes = estado.modulos;
+    generar();
+    if (estado.modulos === antes) {          // no se pudo rearmar sin él
+      estado.quitados.delete(idx);
+      generar();
+      return;
+    }
+  }
+  pintarFuera();
+  avisar("«" + p.descripcion + "» quedó fuera del plano. Usá «Devolver al plano» para traerlo.");
+}
+
+function devolverProductos() {
+  if (!estado.quitados.size) return;
+  const faltantes = [...estado.quitados];
+  estado.quitados.clear();
+
+  if (estado.manual) {
+    // los que ya no figuran en ninguna disposición entran al final de su zona
+    const disp = estado.manual[estado.modulo];
+    for (const idx of faltantes) {
+      if (estado.manual.some(d => ubicarEn(d, idx))) continue;
+      const p = estado.productos.find(q => q.idx === idx);
+      if (!p) continue;
+      const filas = esTablilla(p) ? disp.filasT : disp.filasG;
+      if (!filas.length) filas.push([]);
+      filas[filas.length - 1].push({ p, n: 1 });
+    }
+    const mods = montarManual(estado.manual, estado.cfg, estado.quitados);
+    if (!mods) {
+      faltantes.forEach(i => estado.quitados.add(i));
+      montarManual(estado.manual, estado.cfg, estado.quitados);
+      avisar("No entran de vuelta con este acomodo. Probá «Volver al automático».", true);
+      pintarFuera();
+      return;
+    }
+    estado.modulos = mods;
+    redibujar();
+  } else {
+    generar();
+  }
+  pintarFuera();
+  avisar(faltantes.length + (faltantes.length === 1 ? " producto devuelto" : " productos devueltos") + " al plano.");
+}
+
+function cambiarCaras(delta, idx) {
+  if (idx == null) idx = estado.viva;
+  if (idx == null || !estado.modulos) return;
+  entrarManual();
+  const m = estado.modulos.findIndex(mod => mod.productos.some(p => p.idx === idx));
+  if (m < 0) return;
+  const copia = copiarDisp(estado.manual[m]);
+  const donde = ubicarEn(copia, idx);
+  if (!donde) return;
+  const item = copia[donde.zona === "G" ? "filasG" : "filasT"][donde.fila][donde.pos];
+  const antes = item.n;
+  item.n = Math.max(1, Math.min(20, item.n + delta));
+  if (item.n === antes) return;
+  const prueba = estado.manual.slice();
+  prueba[m] = copia;
+  const mods = montarManual(prueba, estado.cfg, estado.quitados);
+  if (!mods) {
+    montarManual(estado.manual, estado.cfg, estado.quitados);
+    const libre = libreEnFila(estado.manual[m], donde, estado.cfg);
+    const necesita = caraAncho(item.p) + estado.cfg.sepCara;
+    avisar(delta > 0 && libre < necesita
+      ? "Otra cara de «" + item.p.descripcion + "» necesita " + redondo(necesita) +
+        " cm y en esa fila quedan " + redondo(Math.max(0, libre)) + " cm libres."
+      : "Con ese cambio el acomodo no entra en el mueble.", true);
+    return;
+  }
+  estado.manual = prueba;
+  estado.modulos = mods;
+  redibujar();
+}
+
+/* Centímetros que quedan libres en la fila donde está el producto. */
+function libreEnFila(disp, donde, cfg) {
+  const fila = (donde.zona === "G" ? disp.filasG : disp.filasT)[donde.fila] || [];
+  const ancho = it => it.n * caraAncho(it.p) + (it.n - 1) * cfg.sepCara;
+  const ocupado = fila.reduce((s, it) => s + ancho(it), 0) + cfg.sepX * (fila.length - 1);
+  return anchoUtil(cfg) - ocupado;
+}
+
+/* Movimientos con los botones o el teclado. */
+function empujar(dir) {
+  if (estado.viva == null) return;
+  entrarManual();
+  const disp = estado.manual[estado.modulo];
+  const desde = ubicarEn(disp, estado.viva);
+  if (!desde) return;
+  const filas = desde.zona === "G" ? disp.filasG : disp.filasT;
+
+  if (dir === "izq" || dir === "der") {
+    const pos = desde.pos + (dir === "izq" ? -1 : 1);
+    if (pos < 0 || pos > filas[desde.fila].length - 1) return;
+    reubicar(desde, { zona:desde.zona, fila:desde.fila, pos:desde.pos + (dir === "izq" ? -1 : 2),
+                      nueva:false }, estado.viva);
+    return;
+  }
+  const vis = filasVisuales(disp);
+  const aqui = vis.findIndex(v => v.zona === desde.zona && v.fila === desde.fila);
+  const destinoFila = vis[aqui + (dir === "arr" ? -1 : 1)];
+  if (!destinoFila) return;
+  // entra en la fila vecina a la altura horizontal en la que está ahora
+  const mod = estado.modulos[estado.modulo];
+  const mio = mod.niveles.flatMap(nv => nv.caras).filter(c => c.p.idx === estado.viva);
+  const centro = mio.length ? (Math.min(...mio.map(c => c.x)) + Math.max(...mio.map(c => c.x + c.w))) / 2 : 0;
+  const nivelDest = (destinoFila.zona === "G" ? mod.ganchos : mod.estantes)[destinoFila.fila];
+  let pos = 0;
+  if (nivelDest) for (const b of bloquesDelNivel(nivelDest)) {
+    const c = (b[0].x + b[b.length - 1].x + b[b.length - 1].w) / 2;
+    if (centro > c) pos++;
+  }
+  reubicar(desde, { zona:destinoFila.zona, fila:destinoFila.fila, pos, nueva:false }, estado.viva);
+}
+
+function redibujar() {
+  const viva = estado.viva, scroll = el.lista.scrollTop;
+  dibujarPestanas();
+  dibujarPlano();
+  dibujarCifras();
+  dibujarLista();
+  el.lista.scrollTop = scroll;               // no saltar mientras se ajustan caras
+  estado.viva = null;
+  if (viva != null) marcar(viva, false);
+  pintarTira();
+}
+
+let altoPrevio = -1;
+function aplicarZoom() {
+  const plano = el.mesa.querySelector(".plano");
+  if (!plano) return;
+  altoPrevio = el.mesa.clientHeight;
+  if (estado.ajustar) estado.zoom = 1;
+  plano.style.height = Math.max(240, (altoPrevio - 34) * estado.zoom) + "px";
+}
+if (window.ResizeObserver)
+  new ResizeObserver(() => {                 // fuera del callback: si no, avisa de bucle
+    if (el.mesa.clientHeight !== altoPrevio) requestAnimationFrame(aplicarZoom);
+  }).observe(el.mesa);
+
+const COLUMNAS = ["N°", "", "Producto", "Ubicación", "Caras"];
+function dibujarLista() {
+  el.lista.innerHTML = "";
+  const varios = estado.modulos.length > 1;
+  const tabla = nodo("table");
+  const thead = nodo("thead"), tr = nodo("tr");
+  COLUMNAS.forEach(c => tr.appendChild(nodo("th", null, c)));
+  thead.appendChild(tr); tabla.appendChild(thead);
+  const tbody = nodo("tbody");
+
+  for (const mod of estado.modulos) {
+    const conteo = carasPorProducto(mod);
+    for (const p of mod.productos) {
+      const fila = nodo("tr");
+      fila.dataset.idx = p.idx;
+      fila.dataset.busca = (p.numero + " " + p.descripcion + " " + p.barra + " " +
+                            p.material + " " + p.ubicacion).toLowerCase();
+
+      const tdN = nodo("td", "c-n");
+      tdN.appendChild(nodo("span", "ficha", String(p.numero)));
+      fila.appendChild(tdN);
+
+      const tdI = nodo("td", "c-img");
+      if (p.foto) { const img = new Image(); img.src = p.foto.url; img.alt = ""; img.loading = "lazy";
+                    tdI.appendChild(img); }
+      fila.appendChild(tdI);
+
+      const tdP = nodo("td");
+      tdP.appendChild(nodo("div", "nom", p.descripcion));
+      const partes = [];
+      if (p.barra) partes.push(p.barra);
+      if (p.material) partes.push(p.material);
+      tdP.appendChild(nodo("div", "sub mono", partes.join("  ·  ")));
+      fila.appendChild(tdP);
+
+      const tdU = nodo("td");
+      tdU.appendChild(nodo("div", "donde", (varios ? "M" + mod.indice + "-" : "") + p.ubicacion));
+      tdU.appendChild(nodo("div", "sub", p.nivel));
+      fila.appendChild(tdU);
+
+      const tdC = nodo("td", "c-caras");
+      const grupo = nodo("div", "pasitos");
+      const menos = nodo("button", "btn", "−");
+      menos.title = "Quitar una cara";
+      menos.setAttribute("aria-label", "Quitar una cara a " + p.descripcion);
+      const mas = nodo("button", "btn", "+");
+      mas.title = "Agregar una cara";
+      mas.setAttribute("aria-label", "Agregar una cara a " + p.descripcion);
+      const num = nodo("b", "mono", String(conteo[p.idx] || 1));
+      menos.onclick = e => { e.stopPropagation(); cambiarCaras(-1, p.idx); };
+      mas.onclick = e => { e.stopPropagation(); cambiarCaras(1, p.idx); };
+      grupo.append(menos, num, mas);
+      tdC.appendChild(grupo);
+      fila.appendChild(tdC);
+
+      fila.onclick = () => marcar(p.idx, false);
+      tbody.appendChild(fila);
+    }
+  }
+  tabla.appendChild(tbody);
+  el.lista.appendChild(tabla);
+  filtrar();
+}
+function filtrar() {
+  const q = el.buscar.value.trim().toLowerCase();
+  el.lista.querySelectorAll("tbody tr").forEach(tr => {
+    tr.hidden = !!q && !tr.dataset.busca.includes(q);
+  });
+}
+
+function marcar(idx, desdePlano) {
+  const nueva = estado.viva === idx ? null : idx;
+  estado.viva = nueva;
+  if (nueva != null && !desdePlano) {
+    const p = estado.modulos.flatMap(m => m.productos).find(x => x.idx === nueva);
+    if (p && p.modulo - 1 !== estado.modulo) {
+      estado.modulo = p.modulo - 1;
+      dibujarPestanas(); dibujarPlano(); dibujarCifras();
+    }
+  }
+  el.mesa.querySelectorAll(".pieza").forEach(g =>
+    g.classList.toggle("viva", Number(g.dataset.idx) === nueva));
+  let filaViva = null;
+  el.lista.querySelectorAll("tbody tr").forEach(tr => {
+    const es = Number(tr.dataset.idx) === nueva;
+    tr.classList.toggle("viva", es);
+    if (es) filaViva = tr;
+  });
+  pintarTira();
+  if (nueva == null) return;
+  if (desdePlano) { if (filaViva) filaViva.scrollIntoView({ block:"nearest", behavior:"smooth" }); }
+  else {
+    const cara = el.mesa.querySelector('.pieza[data-idx="' + nueva + '"] .cara');
+    if (cara) cara.scrollIntoView({ block:"nearest", inline:"nearest", behavior:"smooth" });
+  }
+}
+
+function pintarTira() {
+  const idx = estado.viva;
+  if (idx == null || !estado.modulos) { el.tira.hidden = true; return; }
+  const mod = estado.modulos.find(m => m.productos.some(p => p.idx === idx));
+  const p = mod && mod.productos.find(q => q.idx === idx);
+  if (!p) { el.tira.hidden = true; return; }
+  const n = carasPorProducto(mod)[idx] || 1;
+  el.tiraNum.textContent = p.numero;
+  el.tiraNombre.textContent = p.descripcion;
+  el.tiraDonde.textContent = (estado.modulos.length > 1 ? "Módulo " + mod.indice + " · " : "") +
+                             p.nivel + " · " + medidasDe(p) + " cm";
+  el.carasTexto.textContent = n + (n === 1 ? " cara" : " caras");
+  el.tira.hidden = false;
+}
+
+/* ==================================================================== *
+ *  10. Interfaz                                                        *
+ * ==================================================================== */
+const GENERICAS = new Set(["hoja1","hoja 1","sheet1","sheet 1","hoja","sheet","datos","hoja2"]);
+function categoriaSugerida(archivo, hoja) {
+  if (hoja && !GENERICAS.has(hoja.trim().toLowerCase())) return hoja.trim();
+  return archivo.replace(/\.[^.]+$/, "").replace(/_/g, " ").trim();
+}
+
+async function cargar(archivo) {
+  if (!archivo) return;
+  if (!/\.xls[xm]$/i.test(archivo.name)) {
+    avisar("El archivo tiene que ser .xlsx o .xlsm. Si es .xls o .csv, abrilo en Excel y guardalo como «Libro de Excel».", true);
+    return;
+  }
+  trabajando(true);
+  try {
+    await esperar();
+    estado.libro = await abrirLibro(await archivo.arrayBuffer());
+    estado.nombreArchivo = archivo.name;
+    estado.hojas = estado.libro.hojas.map(h => h.nombre);
+    estado.hoja = estado.hojas[0];
+
+    el.hoja.innerHTML = "";
+    estado.hojas.forEach(h => { const o = nodo("option", null, h); o.value = h; el.hoja.appendChild(o); });
+    el.hoja.value = estado.hoja;
+    el.campoHoja.hidden = estado.hojas.length < 2;
+    el.categoria.value = categoriaSugerida(archivo.name, estado.hoja);
+    estado.categoria = el.categoria.value;
+
+    el.mandos.hidden = false;
+    el.soltar.classList.add("puesta");
+    el.soltar.querySelector("b").textContent = "Cambiar archivo";
+    el.soltar.querySelector("small").textContent = archivo.name;
+    el.origen.textContent = archivo.name;
+    el.origen.hidden = false;
+
+    await releerHoja();
+  } catch (e) {
+    avisar(e.message || String(e), true);
+  } finally { trabajando(false); }
+}
+
+async function releerHoja() {
+  trabajando(true);
+  try {
+    await esperar();
+    estado.manual = null;                    // otro surtido, otro acomodo
+    estado.viva = null;
+    estado.quitados.clear();
+    pintarModo(); pintarFuera();
+    const { productos, avisos } = await leerProductos(estado.libro, estado.hoja);
+    estado.productos = productos;
+    estado.avisosExcel = avisos;
+    await cargarFotos(estado.libro, productos);
+    generar();
+  } catch (e) {
+    avisar(e.message || String(e), true);
+    el.btnPdf.disabled = el.btnPng.disabled = true;
+  } finally { trabajando(false); }
+}
+
+function generar() {
+  if (!estado.productos) return;
+  const niveles = campo => {
+    const v = parseInt(el[campo].value, 10);
+    return isFinite(v) && v >= 1 ? Math.min(14, v) : null;
+  };
+  const cfg = config({
+    anchoMueble: parseFloat(String(el.ancho.value).replace(",", ".")),
+    altoMueble: parseFloat(String(el.alto.value).replace(",", ".")),
+    maxCaras: Math.max(1, parseInt(el.caras.value, 10) || 4),
+    autoCaras: el.auto.checked,
+    nGancheras: niveles("nGanchos"),
+    nTablillas: niveles("nTablillas")
+  });
+  if (!(cfg.anchoMueble >= 20 && cfg.anchoMueble <= 600) || !(cfg.altoMueble >= 40 && cfg.altoMueble <= 400)) {
+    avisar("El ancho va entre 20 y 600 cm, y el alto entre 40 y 400 cm.", true);
+    return;
+  }
+  try {
+    estado.productos.forEach(p => { p.numero = 0; p.ubicacion = ""; p.nivel = ""; p.modulo = 1; });
+    let modulos, avisos = [];
+    if (estado.manual) {
+      modulos = montarManual(estado.manual, cfg, estado.quitados);
+      if (!modulos) {                                  // el ajuste a mano no entra en el mueble nuevo
+        el.ancho.value = redondo(estado.cfg.anchoMueble);
+        el.alto.value = redondo(estado.cfg.altoMueble);
+        montarManual(estado.manual, estado.cfg, estado.quitados);
+        avisar("Con esas medidas no entra el acomodo hecho a mano. Volvé al automático " +
+               "o sacá algún producto de las filas más llenas.", true);
+        return;
+      }
+    } else {
+      const r = armarModulos(activos(), cfg);
+      modulos = r.modulos;
+      avisos = r.avisos;
+      // si se pidieron niveles fijos y no entraron, que se vea en el momento
+      const corto = r.avisos.find(a => a.indexOf("se pidieron") >= 0);
+      if (corto) avisar(corto + (modulos.length > 1
+        ? " Con esos niveles el surtido ocupa " + modulos.length + " muebles." : ""), true);
+    }
+    estado.modulos = modulos;
+    estado.cfg = cfg;
+    estado.categoria = el.categoria.value.trim() || estado.hoja;
+    estado.modulo = Math.min(estado.modulo, modulos.length - 1);
+    estado.viva = null;
+    el.hueco.remove();
+    el.btnPdf.disabled = el.btnPng.disabled = false;
+    el.buscar.disabled = false;
+    pintarModo(); pintarFuera();
+    dibujarPestanas(); dibujarPlano(); dibujarCifras(); dibujarLista(); pintarTira();
+    dibujarAvisos((estado.avisosExcel || []).concat(avisos));
+  } catch (e) {
+    avisar(e.message || String(e), true);
+    el.btnPdf.disabled = el.btnPng.disabled = true;
+  }
+}
+
+let relojGenerar;
+const generarPronto = () => { clearTimeout(relojGenerar); relojGenerar = setTimeout(generar, 300); };
+
+/* --- guardar --- */
+let descargas;
+async function entregar(nombre, datos, tipo) {
+  if (descargas === undefined)
+    descargas = (window.claude && window.claude.use) ? await window.claude.use("downloads") : null;
+  if (descargas) {
+    await descargas.save({ filename: nombre, data: datos });
+    return "guardado";
+  }
+  if (window.self !== window.top)
+    throw { code:"unavailable", message:"este visor no permite guardar archivos" };
+  // como archivo local, el navegador descarga directo
+  const url = URL.createObjectURL(new Blob([datos], { type: tipo }));
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return "guardado";
+}
+const nombreLimpio = c => (c || "planograma").replace(/[\\/:*?"<>|]+/g, "-").replace(/^[.\s]+|[.\s]+$/g, "");
+
+async function descargarPdf() {
+  trabajando(true);
+  try {
+    await esperar();
+    const bytes = construirPdf(estado.modulos, estado.cfg, estado.categoria, estado.nombreArchivo);
+    await entregar("Planograma - " + nombreLimpio(estado.categoria) + ".pdf", bytes, "application/pdf");
+    avisar("PDF listo.");
+  } catch (e) {
+    if (e && e.code === "declined") return;
+    if (e && (e.code === "extension_not_enabled" || e.code === "rejected_extension"))
+      avisar("Acá no se pueden guardar PDF. Usá el botón PNG para bajar el plano como imagen.", true);
+    else avisar("No se pudo generar el PDF: " + (e && e.message ? e.message : e), true);
+  } finally { trabajando(false); }
+}
+
+async function descargarPng() {
+  trabajando(true);
+  try {
+    await esperar();
+    const mod = estado.modulos[estado.modulo];
+    const blob = await planoEnPng(mod, estado.cfg, estado.categoria);
+    const sufijo = estado.modulos.length > 1 ? " - módulo " + mod.indice : "";
+    await entregar("Planograma - " + nombreLimpio(estado.categoria) + sufijo + ".png", blob, "image/png");
+    avisar("Imagen lista.");
+  } catch (e) {
+    if (e && e.code === "declined") return;
+    avisar("No se pudo generar la imagen: " + (e && e.message ? e.message : e), true);
+  } finally { trabajando(false); }
+}
+
+/* --- eventos --- */
+el.archivo.addEventListener("change", function () { cargar(this.files[0]); this.value = ""; });
+["dragenter","dragover"].forEach(ev => el.soltar.addEventListener(ev, e => {
+  e.preventDefault(); el.soltar.classList.add("encima");
+}));
+["dragleave","drop"].forEach(ev => el.soltar.addEventListener(ev, () => el.soltar.classList.remove("encima")));
+el.soltar.addEventListener("drop", e => { e.preventDefault(); cargar(e.dataTransfer.files[0]); });
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => e.preventDefault());
+
+el.hoja.addEventListener("change", () => {
+  estado.hoja = el.hoja.value;
+  estado.modulo = 0;
+  el.categoria.value = categoriaSugerida(estado.nombreArchivo, estado.hoja);
+  releerHoja();
+});
+el.categoria.addEventListener("input", () => {
+  estado.categoria = el.categoria.value.trim() || estado.hoja;
+  const c = el.mesa.querySelector(".cenefa span");
+  if (c) c.textContent = estado.categoria;
+});
+[el.ancho, el.alto, el.nGanchos, el.nTablillas].forEach(i =>
+  i.addEventListener("input", () => { estado.modulo = 0; generarPronto(); }));
+el.caras.addEventListener("input", function () { el.salidaCaras.textContent = this.value; generarPronto(); });
+el.auto.addEventListener("change", function () {
+  pintarModo();
+  generar();
+});
+el.buscar.addEventListener("input", filtrar);
+
+el.btnAuto.addEventListener("click", volverAutomatico);
+$("#carasMenos").onclick = () => cambiarCaras(-1);
+$("#carasMas").onclick = () => cambiarCaras(1);
+$("#movIzq").onclick = () => empujar("izq");
+$("#movDer").onclick = () => empujar("der");
+$("#movArr").onclick = () => empujar("arr");
+$("#movAba").onclick = () => empujar("aba");
+$("#tiraCerrar").onclick = () => { if (estado.viva != null) marcar(estado.viva, false); };
+$("#btnQuitar").onclick = () => quitarProducto(estado.viva);
+el.btnDevolver.addEventListener("click", devolverProductos);
+el.btnPdf.addEventListener("click", descargarPdf);
+el.btnPng.addEventListener("click", descargarPng);
+$("#zMas").onclick = () => { estado.ajustar = false; estado.zoom = Math.min(4, estado.zoom * 1.25); aplicarZoom(); };
+$("#zMenos").onclick = () => { estado.ajustar = false; estado.zoom = Math.max(.4, estado.zoom / 1.25); aplicarZoom(); };
+$("#zAjustar").onclick = () => { estado.ajustar = true; aplicarZoom(); };
+window.addEventListener("resize", () => { clearTimeout(window._rz); window._rz = setTimeout(aplicarZoom, 120); });
+const FLECHAS = { ArrowLeft:"izq", ArrowRight:"der", ArrowUp:"arr", ArrowDown:"aba" };
+document.addEventListener("keydown", e => {
+  const escribiendo = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+  if (e.key === "Escape" && estado.viva != null) { marcar(estado.viva, false); return; }
+  if (escribiendo || estado.viva == null || !estado.modulos) return;
+  if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    quitarProducto(estado.viva);
+    return;
+  }
+  if (FLECHAS[e.key]) { e.preventDefault(); empujar(FLECHAS[e.key]); return; }
+  if (e.key === "+" || e.key === "=") { e.preventDefault(); cambiarCaras(1); }
+  if (e.key === "-" || e.key === "_") { e.preventDefault(); cambiarCaras(-1); }
+});
+
+if (!window.DecompressionStream)
+  avisar("Este navegador no puede abrir archivos .xlsx. Probá con Chrome, Edge, Firefox o Safari actualizados.", true);
+
+})();
+</script>

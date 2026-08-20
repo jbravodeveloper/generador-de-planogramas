@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de Planogramas</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23173a5e'/%3E%3Cg fill='white'%3E%3Crect x='6' y='7' width='7' height='6' rx='1'/%3E%3Crect x='15' y='7' width='11' height='6' rx='1'/%3E%3Crect x='6' y='15' width='11' height='4' rx='1'/%3E%3Crect x='19' y='15' width='7' height='4' rx='1'/%3E%3Crect x='6' y='21' width='20' height='4' rx='1'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="marca">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><g><rect x="6" y="7" width="7" height="6" rx="1"/><rect x="15" y="7" width="11" height="6" rx="1"/><rect x="6" y="15" width="11" height="4" rx="1"/><rect x="19" y="15" width="7" height="4" rx="1"/><rect x="6" y="21" width="20" height="4" rx="1"/></g></svg>
+    <span>Generador de Planogramas</span>
+  </div>
+  <div class="archivo-actual" id="archivoActual" hidden></div>
+  <button id="btnPdf" class="boton primario" disabled>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    Descargar PDF
+  </button>
+</header>
+
+<div class="app">
+
+  <!-- ------------------------------ controles ------------------------------ -->
+  <aside class="panel" id="panel">
+    <label class="drop" id="drop" for="entradaArchivo">
+      <input type="file" id="entradaArchivo" accept=".xlsx,.xlsm" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <strong>Soltá el Excel acá</strong>
+      <span>o hacé clic para buscarlo</span>
+      <em>.xlsx con las fotos dentro de la celda</em>
+    </label>
+
+    <div id="controles" hidden>
+      <div class="campo">
+        <label for="selHoja">Hoja</label>
+        <select id="selHoja"></select>
+      </div>
+      <div class="campo">
+        <label for="txtCategoria">Categoría <span class="pista">(título del planograma)</span></label>
+        <input type="text" id="txtCategoria" maxlength="60" autocomplete="off">
+      </div>
+
+      <fieldset class="grupo">
+        <legend>Medidas del mueble</legend>
+        <div class="fila">
+          <div class="campo"><label for="numAncho">Ancho (cm)</label>
+            <input type="number" id="numAncho" value="122" min="20" max="600" step="1"></div>
+          <div class="campo"><label for="numAlto">Alto (cm)</label>
+            <input type="number" id="numAlto" value="180" min="40" max="400" step="1"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="grupo">
+        <legend>Caras por producto</legend>
+        <label class="check">
+          <input type="checkbox" id="chkAuto" checked>
+          <span>Rellenar el mueble automáticamente</span>
+        </label>
+        <div class="campo" id="campoCaras">
+          <label for="numCaras">Máximo de caras <output id="salidaCaras">4</output></label>
+          <input type="range" id="numCaras" value="4" min="1" max="8" step="1">
+        </div>
+        <p class="nota">Sin relleno automático se usa 1 cara por producto, o lo que diga la columna <code>Caras</code> del Excel.</p>
+      </fieldset>
+
+      <div id="resumen" class="resumen" hidden></div>
+      <div id="avisos" class="avisos" hidden></div>
+
+      <p class="nota pie">Todo se procesa en esta computadora. El archivo no se sube a ningún lado.</p>
+    </div>
+  </aside>
+
+  <!-- ------------------------------- plano --------------------------------- -->
+  <main class="lienzo">
+    <div class="lienzo-barra">
+      <div class="tabs" id="tabsModulos"></div>
+      <div class="zoom">
+        <button class="boton chico" id="zoomMenos" title="Alejar">−</button>
+        <button class="boton chico" id="zoomAjustar" title="Ajustar a la pantalla">Ajustar</button>
+        <button class="boton chico" id="zoomMas" title="Acercar">+</button>
+      </div>
+    </div>
+    <div class="lienzo-scroll" id="lienzoScroll">
+      <div class="vacio" id="vacio">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg>
+        <p>Cargá un Excel para ver el planograma</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ------------------------------ detalle -------------------------------- -->
+  <section class="detalle" id="detalle">
+    <div class="detalle-barra">
+      <h2>Detalle de productos</h2>
+      <input type="search" id="buscador" placeholder="Buscar…" autocomplete="off" disabled>
+    </div>
+    <div class="detalle-scroll" id="detalleScroll">
+      <p class="vacio-chico">Todavía no hay productos.</p>
+    </div>
+  </section>
+</div>
+
+<div class="cargando" id="cargando" hidden><div class="rueda"></div></div>
+<div class="aviso-flotante" id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
