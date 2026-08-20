@@ -1023,9 +1023,29 @@ function repartirFilas(bloques, cfg) {
 /* Cantidad fija: reparte en exactamente N filas dejándolas lo más parejas posible
    (programación dinámica: minimiza el ancho de la fila más llena).
    Devuelve null si con N filas alguna se pasaría del ancho útil. */
+/* Si se piden más filas que bloques, parte las caras de un mismo producto:
+   4 toallas en 2 tablillas son 2 y 2. Sólo achica los bloques más grandes. */
+function dividirParaN(bloques, N, cfg) {
+  const lista = bloques.map(b => ({ p: b.p, n: b.n, w: b.w }));
+  const ancho = (p, k) => k * caraAncho(p) + (k - 1) * cfg.sepCara;
+  while (lista.length < N) {
+    let mejor = -1;
+    for (let i = 0; i < lista.length; i++)
+      if (lista[i].n > 1 && (mejor < 0 || lista[i].n > lista[mejor].n)) mejor = i;
+    if (mejor < 0) break;                          // ya no quedan caras que repartir
+    const b = lista[mejor];
+    const mitad = Math.floor(b.n / 2), resto = b.n - mitad;
+    lista.splice(mejor, 1,
+      { p: b.p, n: resto, w: ancho(b.p, resto) },
+      { p: b.p, n: mitad, w: ancho(b.p, mitad) });
+  }
+  return lista;
+}
+
 function partirEnN(bloques, N, cfg) {
+  if (!bloques.length) return [];
+  if (N > bloques.length) bloques = dividirParaN(bloques, N, cfg);
   const n = bloques.length;
-  if (!n) return [];
   N = Math.max(1, Math.min(N, n));                 // no hay filas vacías
   const util = anchoUtil(cfg);
   const acum = [0];
@@ -1198,17 +1218,28 @@ function finalizar(modulos, cfg) {
   return modulos;
 }
 
+const codigoNivel = nv => (nv.tipo === "gancho" ? "G" : "T") + nv.indice;
+const nombreNivel = nv => (nv.tipo === "gancho" ? "Gancho fila " : "Tablilla ") + nv.indice;
+
 function numerar(modulo) {
-  let n = 0; const vistos = new Set();
+  let n = 0;
+  const visto = new Map();                   // un producto puede caer en varias filas
   for (const nivel of modulo.niveles) {
     for (const c of nivel.caras.slice().sort((a, b) => a.x - b.x)) {
-      if (!c.primera || vistos.has(c.p.idx)) continue;
-      vistos.add(c.p.idx);
-      c.p.numero = ++n;
-      c.p.ubicacion = (nivel.tipo === "gancho" ? "G" : "T") + nivel.indice;
-      c.p.nivel = (nivel.tipo === "gancho" ? "Gancho fila " : "Tablilla ") + nivel.indice;
-      modulo.productos.push(c.p);
+      if (!c.primera) continue;
+      let e = visto.get(c.p.idx);
+      if (!e) {
+        e = { p: c.p, niveles: [] };
+        visto.set(c.p.idx, e);
+        c.p.numero = ++n;
+        modulo.productos.push(c.p);
+      }
+      if (!e.niveles.includes(nivel)) e.niveles.push(nivel);
     }
+  }
+  for (const { p, niveles } of visto.values()) {
+    p.ubicacion = niveles.map(codigoNivel).join(" + ");
+    p.nivel = niveles.map(nombreNivel).join(" y ");
   }
 }
 const carasBase = ps => Object.fromEntries(ps.map(p => [p.idx, p.carasFijas || 1]));
@@ -1736,7 +1767,9 @@ function filaDetalle(s, f, x, y, i) {
         ty += 8;
       }
     } else if (col.k === "donde") {
-      s.texto(f.donde, cx + 2 * MM, medio - 1, { tam:8, negrita:true, color:TINTA.marino });
+      const tamD = achicar(f.donde, 8, 5.5, w - 3 * MM, true);
+      s.texto(recortar(f.donde, tamD, true, w - 3 * MM), cx + 2 * MM, medio - 1,
+              { tam:tamD, negrita:true, color:TINTA.marino });
       s.texto(recortar(f.nivel, 6, false, w - 3 * MM), cx + 2 * MM, medio + 7,
               { tam:6, color:TINTA.gris });
     } else if (col.k === "caras") {
@@ -2181,8 +2214,12 @@ function reparticionar(zona, n) {
   estado.modulos = mods;
   redibujar();
   const reales = (zona === "G" ? mods[m].ganchos : mods[m].estantes).length;
-  if (n != null && reales !== n)
-    avisar("Se pidieron " + n + " " + nombre + " y entraron " + reales + ".", true);
+  if (n != null && reales !== n) {
+    const caras = dentro.reduce((s, it) => s + it.n, 0);
+    avisar("Se pidieron " + n + " " + nombre + " y entraron " + reales +
+      (caras < n ? ": en esa zona hay " + caras + (caras === 1 ? " cara" : " caras") +
+                   ", no alcanzan para " + n + " filas." : "."), true);
+  }
 }
 
 /* Aplica un movimiento sobre el módulo visible. Devuelve true si se pudo. */
