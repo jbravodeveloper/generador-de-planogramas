@@ -69,6 +69,12 @@ exhibirse**: pasa a dibujarse parado (Ancho × Alto) en vez de colgando
 de cada producto. Si en esa fila del mueble ya no cabe otra cara, te lo avisa y no la
 agrega.
 
+Un mismo producto puede estar **repartido en varias filas** (por ejemplo 5 toallas
+arriba y 5 abajo). En ese caso el listado muestra el desglose —`5 + 5`— y las caras de
+cada fila se ajustan **tocando ese bloque en el plano**: se selecciona solo el bloque
+que tocaste y los `−` `+` de la barra cambian esa fila, no las dos. La ubicación pasa a
+decir `T1 + T2`, tanto en pantalla como en el PDF.
+
 Al hacer clic en un producto aparece además una barra con su ficha, donde podés:
 
 | | |
